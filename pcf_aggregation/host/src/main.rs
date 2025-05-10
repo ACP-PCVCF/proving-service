@@ -18,9 +18,11 @@ fn main() {
     }
 
     let json =
-        std::fs::read_to_string("src/pcf_supply_proof.json").expect("Konnte JSON nicht laden");
+        std::fs::read_to_string("host/src/pcf_supply_proof.json").expect("Konnte JSON nicht laden");
 
     let stored_data: StoredData = serde_json::from_str(&json).expect("Konnte JSON nicht parsen");
+
+    
 
     // An executor environment describes the configurations for the zkVM
     // including program inputs.

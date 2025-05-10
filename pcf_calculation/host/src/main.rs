@@ -7,6 +7,8 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
+//use hex_literal::hex;
+
 fn main() {
     // Initialize tracing. In order to view logs, run `RUST_LOG=info cargo run`
     tracing_subscriber::fmt()
@@ -39,6 +41,24 @@ fn main() {
         fs::read_to_string("host/src/activity.json").expect("File was not readable!!!");
 
     let activities: Vec<Activity> = from_str(&activity_json).unwrap();
+
+    #[derive(Deserialize, Serialize)]
+    struct ShipmentInfo {
+        activity_data_json: String,
+        activity_signature: String,
+        activity_public_key_pem: String,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    struct Shipment {
+        shipment_id: String,
+        info: ShipmentInfo,
+    }
+
+    let shipment_json =
+        fs::read_to_string("host/src/shipments.json").expect("Shipments file not readable");
+
+    let shipments: Vec<Shipment> = from_str(&shipment_json).unwrap();
 
     let env = ExecutorEnv::builder()
         .write(&activities)

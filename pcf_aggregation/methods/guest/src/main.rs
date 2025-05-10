@@ -16,7 +16,7 @@ fn main() {
     let pcf_new = pcf_previous + input;
 
     println!(
-        "Generate proof that the new pcf (verified old + new pcf_activity is:){}",
+        "Generate proof that the new pcf (verified old + new pcf_activity) is:{}",
         pcf_new
     );
 
