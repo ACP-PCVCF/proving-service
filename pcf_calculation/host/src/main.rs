@@ -7,7 +7,33 @@ use std::fs;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
-//use hex_literal::hex;
+// Globale Definitionen der Strukturen
+#[derive(Deserialize, Serialize)]
+struct Activity {
+    process_id: String,
+    unit: String,
+    consumption: u32,
+    e_type: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ShipmentInfo {
+    activity_data_json: String,
+    activity_signature: String,
+    activity_public_key_pem: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct Shipment {
+    shipment_id: String,
+    info: ShipmentInfo,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CombinedInput {
+    activities: Vec<Activity>,
+    shipments: Vec<Shipment>,
+}
 
 fn main() {
     // Initialize tracing. In order to view logs, run `RUST_LOG=info cargo run`
@@ -15,54 +41,26 @@ fn main() {
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .init();
 
-    // An executor environment describes the configurations for the zkVM
-    // including program inputs.
-    // A default ExecutorEnv can be created like so:
-    // `let env = ExecutorEnv::builder().build().unwrap();`
-    // However, this `env` does not have any inputs.
-    //
-    // To add guest input to the executor environment, use
-    // ExecutorEnvBuilder::write().
-    // To access this method, you'll need to use ExecutorEnv::builder(), which
-    // creates an ExecutorEnvBuilder. When you're done adding input, call
-    // ExecutorEnvBuilder::build().
-
-    // For example:
-
-    #[derive(Deserialize, Serialize)]
-    struct Activity {
-        process_id: String,
-        unit: String,
-        consumption: u32,
-        e_type: String,
-    }
-
     let activity_json =
         fs::read_to_string("host/src/activity.json").expect("File was not readable!!!");
 
     let activities: Vec<Activity> = from_str(&activity_json).unwrap();
-
-    #[derive(Deserialize, Serialize)]
-    struct ShipmentInfo {
-        activity_data_json: String,
-        activity_signature: String,
-        activity_public_key_pem: String,
-    }
-
-    #[derive(Deserialize, Serialize)]
-    struct Shipment {
-        shipment_id: String,
-        info: ShipmentInfo,
-    }
 
     let shipment_json =
         fs::read_to_string("host/src/shipments.json").expect("Shipments file not readable");
 
     let shipments: Vec<Shipment> = from_str(&shipment_json).unwrap();
 
+    // Kombiniere die Aktivitäten und Shipments in einer gemeinsamen Struktur
+    let combined_input = CombinedInput {
+        activities,
+        shipments,
+    };
+
+    // Übergib die kombinierte Struktur an den Guest
     let env = ExecutorEnv::builder()
-        .write(&activities)
-        .expect("REASON")
+        .write(&combined_input)
+        .expect("Failed to write combined input to ExecutorEnv")
         .build()
         .unwrap();
 
@@ -70,10 +68,9 @@ fn main() {
     let prover = default_prover();
 
     // Proof information by proving the specified ELF binary.
-    // This struct contains the receipt along with statistics about execution of the guest
     let prove_info = prover.prove(env, GUEST_CODE_FOR_ZK_PROOF_ELF).unwrap();
 
-    // extract the receipt.
+    // Extract the receipt.
     let receipt = prove_info.receipt;
 
     // TODO: Implement code for retrieving receipt journal here.

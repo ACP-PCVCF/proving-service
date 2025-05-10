@@ -8,7 +8,6 @@ use risc0_zkvm::guest::env;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use rsa::{pkcs8::DecodePublicKey, signature::{Verifier}, pss::{Signature, VerifyingKey}};
-//use rsa::{pkcs8::DecodePublicKey, signature::{DigestVerifier, Verifier}, pss::{Signature, VerifyingKey}};
 use hex::decode as hex_decode;
 use serde_json;
 
@@ -27,12 +26,18 @@ struct Shipment {
     info: ShipmentInfo,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Activity {
     process_id: String,
     unit: String,
     consumption: u32,
     e_type: String,
+}
+
+#[derive(Deserialize, Serialize)]
+struct CombinedInput {
+    activities: Vec<Activity>,
+    shipments: Vec<Shipment>,
 }
 
 fn verify_signature(info: &ShipmentInfo) -> bool {
@@ -66,11 +71,12 @@ fn verify_signature(info: &ShipmentInfo) -> bool {
 }
 
 fn main() {
-    let shipments: Vec<Shipment> = env::read();
+    // Lese die kombinierte Eingabe (activities und shipments)
+    let input: CombinedInput = env::read();
 
-    let mut valid_activities: Vec<Activity> = Vec::new();
+    let mut valid_activities: Vec<Activity> = input.activities;
 
-    for shipment in shipments {
+    for shipment in input.shipments {
         if verify_signature(&shipment.info) {
             env::log(format!("Shipment {}: GÜLTIG", shipment.shipment_id).as_str());
 
