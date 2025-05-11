@@ -85,5 +85,5 @@ fn main() {
     print!(
         "The total CO2-Emission for the process pID-3423452 is {} kg CO2e",
         { pcf_total }
-    )
+    );
 }

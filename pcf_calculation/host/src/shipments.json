@@ -1,11 +1,10 @@
 [
-    {
-      "shipment_id": "SHIP_3a9eb761-c4b3-40c1-8658-5652211d7367",
-      "info": {
-        "activity_data_json": "{\"process_id\":\"PROC_XYZ123\",\"unit\":\"liter\",\"consumption\":200,\"e_type\":\"diesel\"}",
-        "activity_signature": "adb63455387dcac9e9f9be3f5a2db50ff21224f743ed65caddd41e1dfe94a91a96fbd1e976bd719f03e79c9724d56daac7cbb54bfd5ffb60baec065774a17de0a22041313917f90351d8cca584dee9a9db68de7e0b312810b5f5ee8fe19a027648beac9faaa617fe4359a530b82cd4fd5580b589b07dc7359a11547e478d9853fd6ef35c0d9ed81220d91d7ff64a45f985f91a26af55279e6f1a8d81ad8fc75aba0c343b54a7f33b74b78aafdc2fe262b94f1881be0dbca589bb544529b5e91b0a7f3cf15c7b7b8b705eaa4c61efef14a2151685fe5b47c1c7d7d08c919fe6ab8e39db272b0654cb61f2627e3490f8005d369a96b2bd2abb35e75d271f5d9f58",
-        "activity_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3KShCqsesN8Gt3OLoOtJ\nj6FutUP/GKCL83WIcvRaPQbZZXkSjGB4QuHK5DBz5wN+fNZq8OZKcbyj4PxaVQhf\n2s5hNsvtDcUwkkNmbGJ6jXF8KPVmFeTKhB0Q9f3qg72Ti76vVbnElhBDSQSWJLH4\nFp0QHN1tEYF1d/38X96tDK9cWdowfsT5j2B81V6QEm8lq5id93/dEo/pr6U8hVJf\nEEki+nNLTATs4p4nH/e0TED8RC7QR2JmHhStHbgo/SzMK1G74lEOtzBeykvC4cJm\nunOajCsMA4cfaoeLjTjaRGpjKjxrpyOzyNXgovqq3Xsi3ntdMFhqGTuRRF9Z7gm5\nKwIDAQAB\n-----END PUBLIC KEY-----"
-      }
+  {
+    "shipment_id": "SHIP_44952dce-316f-4eee-9c68-3dcf6d8a1bbe",
+    "info": {
+      "activity_data_json": "{\"arrivalAt\":\"2025-05-08T03:05:21Z\",\"co2_factor_ttw_per_tkm\":\"0.095\",\"co2eTTW\":\"559.625\",\"co2eWTW\":\"654.271\",\"departureAt\":\"2025-05-07T21:34:27Z\",\"destination\":{\"city\":\"München\",\"countryCode\":\"DE\",\"locationName\":\"München\",\"postalCode\":\"67805\",\"type\":\"PhysicalLocation\"},\"distance\":{\"dataSource\":\"Simulated\",\"unit\":\"km\",\"value\":\"417.94\"},\"hocId\":\"HOC_02454dc6-0cd3-435e-8456-e3edeba82baf\",\"incoterms\":\"FCA\",\"mass\":\"14166.32\",\"origin\":{\"city\":\"Leipzig\",\"countryCode\":\"DE\",\"locationName\":\"Leipzig\",\"postalCode\":\"52963\",\"type\":\"PhysicalLocation\"},\"packagingOrTrEqAmount\":\"9.17\",\"packagingOrTrEqType\":\"Bulk\",\"shipmentId\":\"SHIP_1dc6b75e-74d1-41f0-9b21-737b558bbb5f\",\"tceId\":\"TCE_5db5deda-d1d8-4614-a671-6185cc0e326e\",\"transportActivity\":\"5920.722\",\"wtw_multiplier\":\"1.169\"}",
+      "activity_signature": "907a1342e71f3544edf8752fdf593e4f1d98c71f0b550ad768c99b58ecc8753ffe0a41a709ae99988d3ebfce114194bd58bcf17259a04d8960cbebfb3bb21dc13238c53b89daef0208d0db102854e16696193be7c36415694bee0afdc9f4bb5a0f74a7fa77ac17f944b10b4f43f0070ad6e13ff567535fca7686b8402799a8693aa806fbfc2ac60b4601cf74e243120e3aa243ca82c07093525df7dcfec59bfc8fe3cfe4bfea21172e4b4bb2135867dd55fdbdb021f3d1864fe07a2716a6953acadcc5a80a3ac3d2de2e3566c452aca0405f30a3afe47536ef4de7a4adfdc80bf2ec0a8094fba4306bd7ec7ea07316e917dda9b6dafcd235c82066120e429469",
+      "activity_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuTnMg3YQYUDqAHWdQUjF\ncEu4iNBiIWvB03r7bnRTfWpjGpC7tqWarxdZNoMYbA3Bo9+JfgYIrLdPLOX0dU3c\nYBy+jpCwXgWG28NZeqUle9p7Iw3JI8c/zuXzZ7f6waDe/5/6QoLaXXgfyTOQ2Sfo\nptMtPNzeqq6ALiLXQBjF7z4ex5Oi2jSrKd1Fi3dSjQoX576/StRSpEhXVpswV4Nk\nurjRBRQMbMkQOjVD8OlHWhvxkvXfYPwb5xZjoVTKYziWyDi3+4YVpTsWvzEUnBES\nekSnI3VENbC/OLZnvV3PrXhWQs+GmRoIUoX1FJA29G1BQXH+NAJfNaTN/bBDckPC\nfQIDAQAB\n-----END PUBLIC KEY-----"
     }
-  ]
-  
+  }
+]

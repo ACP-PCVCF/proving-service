@@ -1,6 +1,3 @@
-#![no_main]
-#![no_std]
-
 extern crate alloc;
 
 use alloc::{vec::Vec, string::String, format};
