@@ -3,10 +3,12 @@ extern crate alloc;
 use alloc::{vec::Vec, string::String, format};
 use risc0_zkvm::guest::env;
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
-use rsa::{pkcs8::DecodePublicKey, signature::{Verifier}, pss::{Signature, VerifyingKey}};
-use hex::decode as hex_decode;
-use serde_json;
+use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey};
+use rsa::pkcs1v15::Pkcs1v15Sign;
+use sha2::{Sha256, Digest};
+use base64::{engine::general_purpose, Engine as _};
+
+
 
 risc0_zkvm::guest::entry!(main);
 
@@ -38,17 +40,13 @@ struct CombinedInput {
 }
 
 fn verify_signature(info: &ShipmentInfo) -> bool {
-    let data_bytes = info.activity_data_json.as_bytes();
 
-    let signature_bytes = match hex_decode(&info.activity_signature) {
-        Ok(sig) => sig,
-        Err(e) => {
-            env::log(format!("Fehler beim Dekodieren der Signatur: {:?}", e).as_str());
-            return false;
-        }
-    };
+    let payload = &info.activity_data_json;
+    let signature_b64 = &info.activity_signature;
+    let public_key_pem = &info.activity_public_key_pem;
 
-    let pub_key = match rsa::RsaPublicKey::from_public_key_pem(&info.activity_public_key_pem) {
+    // Öffentlichen Schlüssel aus PEM extrahieren
+    let public_key = match RsaPublicKey::from_pkcs1_pem(public_key_pem) {
         Ok(pk) => pk,
         Err(e) => {
             env::log(format!("Fehler beim Laden des Public Keys: {:?}", e).as_str());
@@ -56,10 +54,27 @@ fn verify_signature(info: &ShipmentInfo) -> bool {
         }
     };
 
-    let verifying_key = VerifyingKey::<Sha256>::new(pub_key);
+    // SHA-256 Hash berechnen
+    let mut hasher = Sha256::new();
+    hasher.update(payload.as_bytes());
+    let digest = hasher.finalize();
 
-    match verifying_key.verify(data_bytes, &Signature::try_from(signature_bytes.as_slice()).unwrap()) {
-        Ok(_) => true,
+    // Signatur base64-dekodieren
+    let signature = match general_purpose::STANDARD.decode(signature_b64) {
+        Ok(sig) => sig,
+        Err(e) => {
+            env::log(format!("Fehler beim Dekodieren der Signatur: {:?}", e).as_str());
+            return false;
+        }
+    };
+
+    // Signatur verifizieren
+    let padding = Pkcs1v15Sign::new_unprefixed();
+    match public_key.verify(padding, &digest, &signature) {
+        Ok(_) => {
+            env::log("Signatur ist gültig.");
+            true
+        }
         Err(e) => {
             env::log(format!("Verifikation fehlgeschlagen: {:?}", e).as_str());
             false
@@ -71,16 +86,16 @@ fn main() {
     // Lese die kombinierte Eingabe (activities und shipments)
     let input: CombinedInput = env::read();
 
-    let mut valid_activities: Vec<Activity> = input.activities;
+    let valid_activities: Vec<Activity> = input.activities;
 
     for shipment in input.shipments {
         if verify_signature(&shipment.info) {
             env::log(format!("Shipment {}: GÜLTIG", shipment.shipment_id).as_str());
 
-            match serde_json::from_str::<Activity>(&shipment.info.activity_data_json) {
-                Ok(activity) => valid_activities.push(activity),
-                Err(e) => env::log(format!("Fehler beim Parsen von Activity JSON: {:?}", e).as_str()),
-            }
+            //match serde_json::from_str::<Activity>(&shipment.info.activity_data_json) {
+            //    Ok(activity) => valid_activities.push(activity),
+            //    Err(e) => env::log(format!("Fehler beim Parsen von Activity JSON: {:?}", e).as_str()),
+            //}
         } else {
             env::log(format!("Shipment {}: UNGÜLTIG", shipment.shipment_id).as_str());
         }
