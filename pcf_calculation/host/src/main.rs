@@ -2,10 +2,11 @@
 // The ELF is used for proving and the ID is used for verification.
 use methods::{GUEST_CODE_FOR_ZK_PROOF_ELF, GUEST_CODE_FOR_ZK_PROOF_ID};
 use risc0_zkvm::{default_prover, ExecutorEnv};
+use serde::{Deserialize, Serialize};
+use serde_json::{from_str, to_string_pretty}; // Import von `from_str` hinzugefügt
 use std::fs;
 
-use serde::{Deserialize, Serialize};
-use serde_json::from_str;
+mod verify; // Modul `verify` einbinden
 
 // Globale Definitionen der Strukturen
 #[derive(Deserialize, Serialize)]
@@ -33,6 +34,12 @@ struct Shipment {
 struct CombinedInput {
     activities: Vec<Activity>,
     shipments: Vec<Shipment>,
+}
+
+#[derive(Serialize)]
+struct ReceiptExport {
+    image_id: String,
+    receipt: risc0_zkvm::Receipt,
 }
 
 fn main() {
@@ -73,17 +80,50 @@ fn main() {
     // Extract the receipt.
     let receipt = prove_info.receipt;
 
-    // TODO: Implement code for retrieving receipt journal here.
-
-    // For example:
     let pcf_total: u32 = receipt.journal.decode().unwrap();
 
-    // The receipt was verified at the end of proving, but the below code is an
-    // example of how someone else could verify this receipt.
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
 
     print!(
         "The total CO2-Emission for the process pID-3423452 is {} kg CO2e",
         { pcf_total }
     );
+
+    //println!("GUEST_CODE_FOR_ZK_PROOF_ID: {:?}", GUEST_CODE_FOR_ZK_PROOF_ID);
+
+    // Konvertiere die Image-ID in einen Hex-String
+    // OLD INCORRECT METHOD:
+    // let image_id_hex = GUEST_CODE_FOR_ZK_PROOF_ID
+    //     .iter()
+    //     .map(|x| format!("{:08x}", x))
+    //     .collect::<String>();
+
+    // CORRECTED METHOD:
+    // Assumes GUEST_CODE_FOR_ZK_PROOF_ID is a Digest or compatible (e.g., [u32; 8])
+    // If GUEST_CODE_FOR_ZK_PROOF_ID is already a risc0_zkvm::Digest:
+    // let image_id_hex = GUEST_CODE_FOR_ZK_PROOF_ID.to_string(); // This line caused the error
+    // If GUEST_CODE_FOR_ZK_PROOF_ID is [u32; 8] and needs conversion to Digest first:
+    use risc0_zkvm::sha::Digest; // Ensure this is the correct Digest type for your risc0 version
+    let image_id_digest = Digest::from(GUEST_CODE_FOR_ZK_PROOF_ID);
+    let image_id_hex = image_id_digest.to_string();
+
+
+    //println!("Image ID (Hex): {}", image_id_hex);
+
+    // Exportiere Receipt und Image-ID in JSON
+    let export = ReceiptExport {
+        image_id: image_id_hex,
+        receipt,
+    };
+
+    let receipt_json = to_string_pretty(&export).expect("JSON serialization failed");
+
+    fs::write("receipt_output.json", receipt_json).expect("Couldn't write receipt_output.json");
+
+    println!("Receipt + Image ID gespeichert in: receipt_output.json");
+
+    // Verifikation ausführen
+    if let Err(e) = verify::verify_receipt() {
+        eprintln!("❌ Fehler bei der Verifikation: {:?}", e);
+    }
 }
