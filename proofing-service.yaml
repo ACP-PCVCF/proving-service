@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proofing-service
+  namespace: proofing-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proofing-service
+  template:
+    metadata:
+      labels:
+        app: proofing-service
+    spec:
+      containers:
+        - name: proofing-service
+          image: proofing-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          
