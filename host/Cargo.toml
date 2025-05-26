@@ -1,0 +1,32 @@
+[package]
+name = "host"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+methods = { path = "../methods" }
+risc0-zkvm = { version = "^2.0.0" }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = "1.0"
+
+
+axum = "0.8.4"
+tokio = { version = "1.3.6", features = ["full"] }
+
+
+# Tokio runtime for async
+serde_json = "1.0"
+
+# Base64 encoding for proof serialization
+base64 = "0.22"
+
+# Bincode for serializing the receipt
+bincode = "1.3"
+
+# Tracing (optional for debug/logging)
+tracing = "0.1"
+
+rdkafka = { version = "0.29", features = ["cmake-build", "tokio"] }
+
+
+#features = ["tokio", "message"]
