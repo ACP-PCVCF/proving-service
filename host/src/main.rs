@@ -10,8 +10,11 @@ use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::config::ClientConfig;
 use tokio::time::Duration;
 use rdkafka::message::Message;
-
+use risc0_zkvm::guest::env; 
 use serde_json::json;
+use log::info; 
+use serde_json::Value;
+use::std::collections::HashMap; 
 
 
 
@@ -52,9 +55,36 @@ struct Shipment {
     info: ShipmentInfo,
 }
 
+async fn process_payload(payload_str: &str) -> Option<ProofResponse> {
+    println!("Rohdaten der Nachricht: {}", payload_str);
+    // Versuch direkt zu parsen (raw JSON)
+    if let Ok(proof_response) = try_handle_raw_json(payload_str).await {
+        return Some(proof_response);
+    }
+
+    // Falls das fehlschlägt, versuche es als stringifizierten JSON-String zu entpacken
+    let inner_json_str: String = match serde_json::from_str(payload_str) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Fehler beim Entpacken des JSON-Strings: {}", e);
+            return None;
+        }
+    };
+
+    try_handle_raw_json(&inner_json_str).await.ok()
+}
+
+async fn try_handle_raw_json(shipments_json: &str) -> Result<ProofResponse, ()> {
+    match handle_kafka_message(shipments_json).await {
+        Some(resp) => Ok(resp),
+        None => Err(()),
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let brokers = "localhost:9092";
+    env_logger::init();
 
     let consumer: StreamConsumer = ClientConfig::new()
         .set("bootstrap.servers", brokers)
@@ -70,38 +100,30 @@ async fn main() {
         .create()
         .expect("Producer creation failed");
 
-    loop {
-
+ loop {
     match consumer.recv().await {
         Ok(message) => {
-        match message.payload_view::<str>() {
-    Some(Ok(payload)) => {
-
-            let topic_name : &str = "pcf-results"; 
-           let proof_response = handle_kafka_message(payload).await;
-
-                    let result_json = serde_json::to_string(&proof_response)
-                        .expect("Failed to serialize proof_response");
-
-let record = FutureRecord::to(topic_name)
-    .payload(&result_json) // result_json: String
-    .key("some-key");      // or .key("") if you don't care
-
-let delivery_status = producer.send(record, Duration::from_secs(0)).await;
-
-
-
-
-    } 
-    Some(Err(e)) => println!("Payload UTF-8 error: {}", e),
-    None => println!("No payload"),
-}
+            match message.payload_view::<str>() {
+                Some(Ok(payload_str)) => {
+                    if let Some(proof_response) = process_payload(payload_str).await {
+                        let result_json = serde_json::to_string(&proof_response)
+                            .expect("Failed to serialize proof_response");
+                        let record = FutureRecord::to("pcf-results")
+                            .payload(&result_json)
+                            .key("some-key");
+                        let _ = producer.send(record, Duration::from_secs(10)).await;
+                    } else {
+                        info!("Ungültige Nachricht wurde ignoriert.");
+                    }
+                }
+                Some(Err(e)) => eprintln!("Payload UTF-8 error: {}", e),
+                None => eprintln!("No payload"),
+            }
+        }
+        Err(e) => eprintln!("Kafka error receiving message: {:?}", e),
     }
- Err(e) => eprintln!("Kafka error receiving message: {:?}", e),
-}}
-
 }
-
+}
    /* match consumer.recv().await {
         Ok(message) => {
             match message.payload_view::<str>() {
@@ -127,10 +149,73 @@ let delivery_status = producer.send(record, Duration::from_secs(0)).await;
 }
 } */ 
 
-async fn handle_kafka_message(shipments_json: &str) -> ProofResponse {
-    let shipments: Vec<Shipment> = serde_json::from_str(shipments_json).unwrap();
+ 
 
-    let env = ExecutorEnv::builder()
+async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
+    println!("Rohdaten der Nachricht: {}", &shipments_json);
+
+    // Erwartet ein JSON-Array: Vec<Shipment>
+    let shipments: Vec<Shipment> = match serde_json::from_str(shipments_json) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Ungültige Nachricht ignoriert (JSON Fehler): {}", e);
+            return None;
+        }
+    };
+
+    let env = match ExecutorEnv::builder().write(&shipments).and_then(|b| b.build()) {
+        Ok(env) => env,
+        Err(e) => {
+            eprintln!("Fehler beim Erstellen der ExecutorEnv: {}", e);
+            return None;
+        }
+    };
+
+    let prover = default_prover();
+    let prove_info = match prover.prove(env, GUEST_PROOFING_LOGIC_ELF) {
+        Ok(info) => info,
+        Err(e) => {
+            eprintln!("Fehler beim Prove: {}", e);
+            return None;
+        }
+    };
+
+    let receipt = prove_info.receipt;
+
+    let journal_output: f32 = match receipt.journal.decode() {
+        Ok(val) => val,
+        Err(e) => {
+            eprintln!("Fehler beim Dekodieren des Journals: {}", e);
+            return None;
+        }
+    };
+
+    if let Err(e) = receipt.verify(GUEST_PROOFING_LOGIC_ID) {
+        eprintln!("Receipt Verification failed: {}", e);
+        return None;
+    }
+
+    let receipt_bytes = match bincode::serialize(&receipt) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!("Fehler beim Serialisieren des Receipts: {}", e);
+            return None;
+        }
+    };
+
+    let encoded_receipt = general_purpose::STANDARD.encode(receipt_bytes);
+
+    env::log("Handed over response ...");
+
+    Some(ProofResponse {
+        proof_receipt: encoded_receipt,
+        journal_output,
+        image_id: format!("{:?}", GUEST_PROOFING_LOGIC_ID),
+    })
+}
+
+
+    /*let env = ExecutorEnv::builder()
         .write(&shipments)
         .unwrap()
         .build()
@@ -146,12 +231,16 @@ async fn handle_kafka_message(shipments_json: &str) -> ProofResponse {
     let receipt_bytes = bincode::serialize(&receipt).unwrap();
     let encoded_receipt = general_purpose::STANDARD.encode(receipt_bytes);
 
+    env::log("Handed over response ..."); 
+
     ProofResponse {
         proof_receipt: encoded_receipt,
         journal_output,
         image_id: format!("{:?}", GUEST_PROOFING_LOGIC_ID),
     }
-}
+
+
+    */
 
 
 
@@ -223,7 +312,7 @@ mod tests {
         "#;
 
         // Call kafka handler
-        let resp: ProofResponse = handle_kafka_message(shipments_json).await;
+        let resp: ProofResponse = handle_kafka_message(shipments_json).await.expect("kafka_handler_failed");
 
         // check outcomes 
         assert!(!resp.proof_receipt.is_empty(), "receipt must be generated");

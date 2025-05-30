@@ -102,6 +102,7 @@ fn main() {
         
         let data : Value = serde_json::from_str(&shipment.info.activity_data_json).unwrap();    
         transport_pcf = sum_emissions(data["co2eWTW"].as_str().unwrap().parse().unwrap(), transport_pcf); 
+        env::log("The co2eWTW value is: {transport_pcf}"); 
         transport_mass = sum_mass(data["mass"].as_str().unwrap().parse().unwrap(), transport_mass); 
 
             //match serde_json::from_str::<Activity>(&shipment.info.activity_data_json) {
