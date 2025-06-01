@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-data-service
+  namespace: proofing-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sensor-data-service
+  template:
+    metadata:
+      labels:
+        app: sensor-data-service
+    spec:
+      containers:
+        - name: sensor
+          image: sensor-data-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sensor-data-service
+spec:
+  selector:
+    app: sensor-data-service
+  ports:
+    - port: 8080
+      targetPort: 8080
