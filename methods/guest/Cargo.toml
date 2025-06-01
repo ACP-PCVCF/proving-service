@@ -7,6 +7,7 @@ edition = "2021"
 risc0-zkvm = { version = "^2.0.0", default-features = false, features = [
     'std',
 ] }
+proving_service_core = { path = "../../core" }
 
 
 serde = { version = "1.0", default-features = false, features = ["derive"] }
