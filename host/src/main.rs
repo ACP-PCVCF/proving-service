@@ -55,6 +55,108 @@ struct Shipment {
     info: ShipmentInfo,
 }
 
+
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProductFootprintRoot {
+    pub productFootprint: ProductFootprint,
+    pub tocData: Vec<TocData>,
+    pub hocData: Vec<HocData>,
+    pub signedSensorData: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProductFootprint {
+    pub id: String,
+    pub specVersion: String,
+    pub version: i32,
+    pub created: String,
+    pub status: String,
+    pub companyName: String,
+    pub companyIds: Vec<String>,
+    pub productDescription: String,
+    pub productIds: Vec<String>,
+    pub productCategoryCpc: i32,
+    pub productNameCompany: String,
+    pub pcf: Option<serde_json::Value>,
+    pub comment: String,
+    pub extensions: Vec<Extension>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Extension {
+    pub specVersion: String,
+    pub dataSchema: String,
+    pub data: ExtensionData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExtensionData {
+    pub mass: f64,
+    pub shipmentId: String,
+    pub tces: Vec<Tce>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Tce {
+    pub tceId: String,
+    pub prevTceIds: Vec<String>,
+    pub hocId: Option<String>,
+    pub tocId: Option<String>,
+    pub shipmentId: String,
+    pub mass: f64,
+    pub co2eWTW: Option<serde_json::Value>,
+    pub co2eTTW: Option<serde_json::Value>,
+    pub transportActivity: Option<serde_json::Value>,
+    pub distance: Option<Distance>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Distance {
+    pub actual: f64,
+    pub gcd: Option<serde_json::Value>,
+    pub sfd: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TocData {
+    pub tocId: String,
+    pub certifications: Vec<String>,
+    pub description: String,
+    pub mode: String,
+    pub loadFactor: String,
+    pub emptyDistanceFactor: String,
+    pub temperatureControl: String,
+    pub truckLoadingSequence: String,
+    pub airShippingOption: Option<serde_json::Value>,
+    pub flightLength: Option<serde_json::Value>,
+    pub energyCarriers: Vec<EnergyCarrier>,
+    pub co2eIntensityWTW: String,
+    pub co2eIntensityTTW: String,
+    pub transportActivityUnit: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HocData {
+    pub hocId: String,
+    pub passhubType: String,
+    pub energyCarriers: Vec<EnergyCarrier>,
+    pub co2eIntensityWTW: String,
+    pub co2eIntensityTTW: String,
+    pub hubActivityUnit: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnergyCarrier {
+    pub energyCarrier: String,
+    pub distributionEfficiency: String,
+    pub energyDensity: String,
+    pub unit: String,
+}
+
+
+
 async fn process_payload(payload_str: &str) -> Option<ProofResponse> {
     println!("Rohdaten der Nachricht: {}", payload_str);
     // Versuch direkt zu parsen (raw JSON)
@@ -155,7 +257,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     println!("Rohdaten der Nachricht: {}", &shipments_json);
 
     // Erwartet ein JSON-Array: Vec<Shipment>
-    let shipments: Vec<Shipment> = match serde_json::from_str(shipments_json) {
+    let shipments: ProductFootprintRoot = match serde_json::from_str(shipments_json) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Ungültige Nachricht ignoriert (JSON Fehler): {}", e);
@@ -209,7 +311,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
 
     Some(ProofResponse {
         proof_receipt: encoded_receipt,
-        journal_output,
+        journal_output,  // TODO, kann weg
         image_id: format!("{:?}", GUEST_PROOFING_LOGIC_ID),
     })
 }
@@ -290,7 +392,156 @@ mod tests {
     #[tokio::test]
     async fn smoke_test_with_realistic_shipments_json() {
         // 1) The exact JSON array you provided, as a single string literal
-        let shipments_json = r#"
+        let shipments_json = r#"{
+  "productFootprint": {
+    "id": "d7383bf3-90e9-4c95-a421-633b979acfe7",
+    "specVersion": "2.0.0",
+    "version": 0,
+    "created": "2025-06-01T00:04:06.251704",
+    "status": "Active",
+    "companyName": "Amazing Company 1",
+    "companyIds": [
+      "urn:epcidsgln:70f8760c-64ec-4eb6-9de1-3fb659c18716"
+    ],
+    "productDescription": "Logistics emissions related to shipment with ID SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+    "productIds": [
+      "urn:pathfinder:product:customcode:vendor-assigned:e40642c5-fbbf-45f9-9e4d-309361dd8350"
+    ],
+    "productCategoryCpc": 5839,
+    "productNameCompany": "Shipment with ID SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+    "pcf": null,
+    "comment": "",
+    "extensions": [
+      {
+        "specVersion": "2.0.0",
+        "dataSchema": "https://api.ileap.sine.dev/shipment-footprint.json",
+        "data": {
+          "mass": 1677.5024610506578,
+          "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+          "tces": [
+            {
+              "tceId": "8f3c12fa-9ea1-48bf-a707-44c452942d0e",
+              "prevTceIds": [],
+              "hocId": "100",
+              "tocId": null,
+              "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+              "mass": 1677.5024610506578,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "b154acb2-eced-40a7-b0e7-7302cd8dae80",
+              "prevTceIds": [
+                "8f3c12fa-9ea1-48bf-a707-44c452942d0e"
+              ],
+              "hocId": null,
+              "tocId": "200",
+              "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+              "mass": 1677.5024610506578,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 61.62903174862354,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "2d4f1c6a-f787-4130-bc65-d9afdd88fdbd",
+              "prevTceIds": [
+                "8f3c12fa-9ea1-48bf-a707-44c452942d0e",
+                "b154acb2-eced-40a7-b0e7-7302cd8dae80"
+              ],
+              "hocId": "101",
+              "tocId": null,
+              "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+              "mass": 1677.5024610506578,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tocData": [
+    {
+      "tocId": "200",
+      "certifications": [
+        "ISO_14001",
+        "ECO_TRANSIT_CERT"
+      ],
+      "description": "Standard Diesel Truck - Long Haul",
+      "mode": "Road",
+      "loadFactor": "0.80",
+      "emptyDistanceFactor": "0.10",
+      "temperatureControl": "Ambient",
+      "truckLoadingSequence": "LIFO",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [
+        {
+          "energyCarrier": "Diesel",
+          "distributionEfficiency": "0.99",
+          "energyDensity": "10.7 kWh/L",
+          "unit": "L"
+        }
+      ],
+      "co2eIntensityWTW": "85 gCO2e/tkm",
+      "co2eIntensityTTW": "75 gCO2e/tkm",
+      "transportActivityUnit": "tkm"
+    }
+  ],
+  "hocData": [
+    {
+      "hocId": "100",
+      "passhubType": "Charging Hub",
+      "energyCarriers": [
+        {
+          "energyCarrier": "Electricity",
+          "distributionEfficiency": "0.98",
+          "energyDensity": "1 kWh/unit",
+          "unit": "kWh"
+        }
+      ],
+      "co2eIntensityWTW": "25 gCO2e/MJ",
+      "co2eIntensityTTW": "0 gCO2e/MJ",
+      "hubActivityUnit": "kWh delivered"
+    },
+    {
+      "hocId": "101",
+      "passhubType": "Refuelling Hub",
+      "energyCarriers": [
+        {
+          "energyCarrier": "Hydrogen",
+          "distributionEfficiency": "0.90",
+          "energyDensity": "33.3 kWh/kg",
+          "unit": "kg"
+        },
+        {
+          "energyCarrier": "Diesel",
+          "distributionEfficiency": "0.99",
+          "energyDensity": "10.7 kWh/L",
+          "unit": "L"
+        }
+      ],
+      "co2eIntensityWTW": "70 gCO2e/MJ",
+      "co2eIntensityTTW": "0 gCO2e/MJ",
+      "hubActivityUnit": "kg dispensed"
+    }
+  ],
+  "signedSensorData": null
+}"#  ; 
+
+
+
+
+/* r#"
         [
           {
             "shipment_id": "SHIP_3a9eb761-c4b3-40c1-8658-5652211d7367",
@@ -309,7 +560,8 @@ mod tests {
             }
           }
         ]
-        "#;
+        "#;  */ 
+
 
         // Call kafka handler
         let resp: ProofResponse = handle_kafka_message(shipments_json).await.expect("kafka_handler_failed");
