@@ -1,0 +1,157 @@
+{
+  "productFootprint": {
+    "id": "d7383bf3-90e9-4c95-a421-633b979acfe7",
+    "specVersion": "2.0.0",
+    "version": 0,
+    "created": "2025-06-01T00:04:06.251704",
+    "status": "Active",
+    "companyName": "Amazing Company 1",
+    "companyIds": [
+      "urn:epcidsgln:70f8760c-64ec-4eb6-9de1-3fb659c18716"
+    ],
+    "productDescription": "Logistics emissions related to shipment with ID SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+    "productIds": [
+      "urn:pathfinder:product:customcode:vendor-assigned:e40642c5-fbbf-45f9-9e4d-309361dd8350"
+    ],
+    "productCategoryCpc": 5839,
+    "productNameCompany": "Shipment with ID SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+    "pcf": null,
+    "comment": "",
+    "extensions": [
+      {
+        "specVersion": "2.0.0",
+        "dataSchema": "https://api.ileap.sine.dev/shipment-footprint.json",
+        "data": {
+          "mass": 1677.5024610506578,
+          "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+          "tces": [
+            {
+              "tceId": "8f3c12fa-9ea1-48bf-a707-44c452942d0e",
+              "prevTceIds": [],
+              "hocId": "100",
+              "tocId": null,
+              "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+              "mass": 1677.5024610506578,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "b154acb2-eced-40a7-b0e7-7302cd8dae80",
+              "prevTceIds": [
+                "8f3c12fa-9ea1-48bf-a707-44c452942d0e"
+              ],
+              "hocId": null,
+              "tocId": "200",
+              "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+              "mass": 1677.5024610506578,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 61.62903174862354,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "2d4f1c6a-f787-4130-bc65-d9afdd88fdbd",
+              "prevTceIds": [
+                "8f3c12fa-9ea1-48bf-a707-44c452942d0e",
+                "b154acb2-eced-40a7-b0e7-7302cd8dae80"
+              ],
+              "hocId": "101",
+              "tocId": null,
+              "shipmentId": "SHIP_71a3dd36-db87-403e-af43-8ee263593d1d",
+              "mass": 1677.5024610506578,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tocData": [
+    {
+      "tocId": "200",
+      "certifications": [
+        "ISO_14001",
+        "ECO_TRANSIT_CERT"
+      ],
+      "description": "Standard Diesel Truck - Long Haul",
+      "mode": "road",
+      "loadFactor": "0.80",
+      "emptyDistanceFactor": "0.10",
+      "temperatureControl": "Ambient",
+      "truckLoadingSequence": "LIFO",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [
+        {
+          "energyCarrier": "Diesel",
+          "distributionEfficiency": "0.99",
+          "energyDensity": "10.7 kWh/L",
+          "unit": "L",
+          "emissionFactorWTW": "x",
+          "emissionFactorTTW": "x",
+          "relativeShare": "1"
+        }
+      ],
+      "co2eIntensityWTW": "85 gCO2e/tkm",
+      "co2eIntensityTTW": "75 gCO2e/tkm",
+      "transportActivityUnit": "tkm"
+    }
+  ],
+  "hocData": [
+    {
+      "hocId": "100",
+      "passhubType": "Charging Hub",
+      "energyCarriers": [
+        {
+          "energyCarrier": "Electricity",
+          "distributionEfficiency": "0.98",
+          "energyDensity": "1 kWh/unit",
+          "unit": "kWh",
+          "emissionFactorWTW": "x",
+          "emissionFactorTTW": "x",
+          "relativeShare": "1"
+        }
+      ],
+      "co2eIntensityWTW": "25 gCO2e/MJ",
+      "co2eIntensityTTW": "0 gCO2e/MJ",
+      "hubActivityUnit": "kWh delivered"
+    },
+    {
+      "hocId": "101",
+      "passhubType": "Refuelling Hub",
+      "energyCarriers": [
+        {
+          "energyCarrier": "Hydrogen",
+          "distributionEfficiency": "0.90",
+          "energyDensity": "33.3 kWh/kg",
+          "unit": "kg",
+          "emissionFactorWTW": "x",
+          "emissionFactorTTW": "x",
+          "relativeShare": "1"
+        },
+        {
+          "energyCarrier": "Diesel",
+          "distributionEfficiency": "0.99",
+          "energyDensity": "10.7 kWh/L",
+          "unit": "L",
+          "relativeShare": "1",
+          "emissionFactorWTW": "x",
+          "emissionFactorTTW": "x"
+        }
+      ],
+      "co2eIntensityWTW": "70 gCO2e/MJ",
+      "co2eIntensityTTW": "0 gCO2e/MJ",
+      "hubActivityUnit": "kg dispensed"
+    }
+  ],
+  "signedSensorData": null
+}

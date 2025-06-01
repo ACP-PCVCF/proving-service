@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+proofing_service_core = { path = "../core" }
 methods = { path = "../methods" }
 risc0-zkvm = { version = "^2.0.0" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
