@@ -8,7 +8,6 @@ use rdkafka::producer::{ FutureProducer, FutureRecord };
 use rdkafka::config::ClientConfig;
 use tokio::time::Duration;
 use rdkafka::message::Message;
-use risc0_zkvm::guest::env;
 use serde_json::json;
 use log::info;
 use serde_json::Value;
@@ -24,6 +23,7 @@ use axum::{ routing::get, routing::post, Router, Json };
 struct ProofResponse {
     productFootprintId: String,
     proofReceipt: String,
+    proofReference: String,
     pcf: f64,
     imageId: String,
 }
@@ -189,6 +189,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     Some(ProofResponse {
         productFootprintId: proofing_document.productFootprint.id,
         proofReceipt: encoded_receipt,
+        proofReference: "123".to_string(),
         pcf: journal_output,
         imageId: format!("{:?}", GUEST_PROOFING_LOGIC_ID),
     })
