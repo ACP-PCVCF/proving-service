@@ -28,4 +28,7 @@ kubectl delete service camunda-service -n $NAMESPACE --ignore-not-found
 echo "Stopping Minikube..."
 minikube stop
 
+echo "Deleting Minikube cluster..."
+minikube delete
+
 echo "Cleanup completed."

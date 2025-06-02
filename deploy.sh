@@ -17,13 +17,13 @@ eval $(minikube docker-env)
 
 # Build Docker images
 echo "Building Docker images..."
-docker build -t sensor-data-service:latest ./sensor-data-service
+docker build -t sensor-data-service:latest ./sensor-data-service 
 docker build -t camunda-service:latest ./camunda-service
-#docker build --platform=linux/amd64 -t proving-service:latest ./proving-service
+#docker build --platform=linux/amd64 -t proving-service:latest ./proving-service 
 
 # Deploy services to Kubernetes
 echo "Applying Kubernetes manifests..."
-kubectl apply -f ./sensor-data-service/k8s/sensor-service.yaml -n $NAMESPACE
+kubectl apply -f ./sensor-data-service/k8s/sensor-data-service.yaml -n $NAMESPACE
 kubectl apply -f ./camunda-service/k8s/camunda-service.yaml -n $NAMESPACE
 #kubectl apply -f ./proving-service/k8s/proving-service-deployment.yaml -n $NAMESPACE
 
