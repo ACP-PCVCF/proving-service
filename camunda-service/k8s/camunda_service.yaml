@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camunda-service
+  namespace: proofing-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: camunda-service
+  template:
+    metadata:
+      labels:
+        app: camunda-service
+    spec:
+      containers:
+      - name: camunda-service
+        image: camunda-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+         - containerPort: 8000
+        env:
+        - name: ZEEBE_ADDRESS
+          value: "camunda-zeebe-gateway.proofing-system.svc.cluster.local:26500" # host:port form, da  Zeebe gRPC erwartet nicht HTTP
+        - name: PROOFING_SERVICE_API_URL
+          value: "http://proofing-service:3000" #http connection
+        - name: SENSOR_SERVICE_API_URL
+          value: "http://sensor-data-service:8080" #http connection
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ACTIVITIES_OUTPUT_PATH
+          value: "/app/activities.json" # Pfad innerhalb des Containers
+        - name: REQUEST_TIMEOUT
+          value: "30"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: camunda-service
+spec:
+  selector:
+    app: camunda-service
+  ports:
+    - port: 8000
+      targetPort: 8000

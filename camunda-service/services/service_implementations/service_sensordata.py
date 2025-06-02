@@ -3,10 +3,13 @@ import json
 import random
 import uuid
 from typing import Dict, List, Optional, Union
+import requests
+import os
 
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
-from models.data_models import SignedTCEData
+#from models.data_models import SignedTCEData
+from models.sensor_data import TceSensorData
 from utils.data_utils import convert_sets_to_lists, create_crypto_keys, sign_data
 from utils.logging_utils import log_service_call
 
@@ -100,142 +103,180 @@ class SensorDataService:
     
     def __init__(self):
         log_service_call("SensorDataService", "__init__")
-        # Initialize service if needed
+        self.base_url = os.getenv("SENSOR_SERVICE_API_URL", "http://localhost:8000")
 
-    def call_service_sensordata(
-            self,
-            shipment_id: str,
-            sensor_id: str):
-    # Call the service to get sensor data
-        print(f"Calling sensor data service for shipment {shipment_id} with sensor {sensor_id}")
+    def call_service_sensordata(self, variables):
+        shipment_id = variables.get("shipment_id", "unknown")
+        tce_id = variables.get("tceId")
+        process_instance_key = variables.get("camundaProcessInstanceKey")
+        activity_id = variables.get("camundaActivityId")
 
-
-
-    def get_mock_sensor_data(
-            self,
-            shipment_id: str,
-            mass_kg: float = None,
-            distance_km: float = None,
-            prev_tce_id: Optional[Union[str, List[str]]] = None,
-            start_time: Optional[datetime.datetime] = None,
-    ) -> Dict[str, SignedTCEData]:
-        """
-        Generate or retrieve transport carbon emission (TCE) data for a shipment.
-        
-        Args:
-            shipment_id: Unique identifier for the shipment
-            mass_kg: Mass of shipment in kilograms (random if not provided)
-            distance_km: Distance of transport in kilometers (random if not provided)
-            prev_tce_id: Previous TCE ID for linking records
-            start_time: Starting time for the transport
-            
-        Returns:
-            Dictionary containing the TCE data and cryptographic signatures
-        """
-
-        
-        # Use provided values or generate random ones
-        mass_kg = mass_kg or random.uniform(1000, 20000)
-        distance_km = distance_km or random.uniform(10, 1000)
-        
-        # Generate cryptographic keys
-        activity_private_key, activity_public_key_pem = create_crypto_keys()
-        tce_id = f"TCE_{uuid.uuid4()}"
-        
-        # Initialize base TCE data
-        tce_data = {
+        payload = {
+            "shipment_id": shipment_id,
             "tceId": tce_id,
-            "shipmentId": shipment_id,
-            "mass": f"{mass_kg:.2f}",
-            "distance": {
-                "value": f"{distance_km:.2f}",
-                "unit": "km",
-                "dataSource": "Simulated",
-            },
+            "camundaProcessInstanceKey": process_instance_key,
+            "camundaActivityId": activity_id
         }
 
-        # Calculate transport activity and emissions
-        transport_activity_val = (distance_km * mass_kg) / 1000.0
-        tce_data["transportActivity"] = f"{transport_activity_val:.3f}"
+        log_service_call(
+            service_name="SensorDataService",
+            method_name="call_service_sensordata",
+            message="Sending sensor data request",
+            payload=payload
+        )
 
-        # Add emission data
-        tce_data.update(calculate_emissions(transport_activity_val))
-
-        # Add TOC or HOC ID (Transport Operator Code or Handling Operator Code)
-        if random.choice([True, False]):
-            tce_data["tocId"] = f"TOC_{uuid.uuid4()}"
-            tce_data["hocId"] = None
-        else:
-            tce_data["hocId"] = f"HOC_{uuid.uuid4()}"
-            tce_data["tocId"] = None
-
-        # Ensure at least one operator ID exists
-        if tce_data.get("tocId") is None and tce_data.get("hocId") is None:
-            tce_data["tocId"] = f"TOC_fallback_{uuid.uuid4()}"
-
-        # Add previous TCE IDs if provided
-        if prev_tce_id:
-            tce_data["prevTceIds"] = (
-                [prev_tce_id] if not isinstance(prev_tce_id, list) else prev_tce_id
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/v1/sensor-data",
+                json=payload,
+                timeout=10
+            )
+            log_service_call(
+                service_name="SensorDataService",
+                method_name="call_service_sensordata",
+                message=f"Received response {response.status_code}",
+                payload=response.json() if response.ok else response.text
             )
 
-        # Add consignment ID with 70% probability
-        if random.random() < 0.7:
-            tce_data["consignmentId"] = f"CON_{uuid.uuid4()}"
+            response.raise_for_status()
+            return TceSensorData(**response.json())
 
-        # Add packaging data
-        tce_data.update(generate_package_data())
+        except requests.RequestException as e:
+            log_service_call(
+                service_name="SensorDataService",
+                method_name="call_service_sensordata",
+                message=f"HTTP request failed: {str(e)}",
+                payload=payload
+            )
+            raise
 
-        # Generate origin and destination
-        origin_city = random.choice(CITIES)
-        destination_city_options = [c for c in CITIES if c != origin_city]
-        if not destination_city_options:
-            destination_city_options = CITIES
-        destination_city = random.choice(destination_city_options)
 
-        tce_data["origin"] = generate_location_data(origin_city)
-        tce_data["destination"] = generate_location_data(destination_city)
 
-        # Calculate departure and arrival times
-        avg_speed_kmh = random.uniform(60, 80)
-        duration_hours = int((distance_km / avg_speed_kmh) * random.uniform(1, 1.2))
-        departure_time_iso = generate_iso_timestamp(start_time)
-        tce_data["departureAt"] = departure_time_iso
-        dt_departure = datetime.datetime.fromisoformat(
-            departure_time_iso.replace("Z", "+00:00")
-        )
-        tce_data["arrivalAt"] = generate_iso_timestamp(
-            dt_departure, add_hours=duration_hours
-        )
+    # def get_mock_sensor_data(
+    #         self,
+    #         shipment_id: str,
+    #         mass_kg: float = None,
+    #         distance_km: float = None,
+    #         prev_tce_id: Optional[Union[str, List[str]]] = None,
+    #         start_time: Optional[datetime.datetime] = None,
+    # ) -> Dict[str, SignedTCEData]:
+    #     """
+    #     Generate or retrieve transport carbon emission (TCE) data for a shipment.
+        
+    #     Args:
+    #         shipment_id: Unique identifier for the shipment
+    #         mass_kg: Mass of shipment in kilograms (random if not provided)
+    #         distance_km: Distance of transport in kilometers (random if not provided)
+    #         prev_tce_id: Previous TCE ID for linking records
+    #         start_time: Starting time for the transport
+            
+    #     Returns:
+    #         Dictionary containing the TCE data and cryptographic signatures
+    #     """
 
-        # Set flight and voyage numbers to None
-        tce_data["flightNo"] = None
-        tce_data["voyageNo"] = None
+        
+    #     # Use provided values or generate random ones
+    #     mass_kg = mass_kg or random.uniform(1000, 20000)
+    #     distance_km = distance_km or random.uniform(10, 1000)
+        
+    #     # Generate cryptographic keys
+    #     activity_private_key, activity_public_key_pem = create_crypto_keys()
+    #     tce_id = f"TCE_{uuid.uuid4()}"
+        
+    #     # Initialize base TCE data
+    #     tce_data = {
+    #         "tceId": tce_id,
+    #         "shipmentId": shipment_id,
+    #         "mass": f"{mass_kg:.2f}",
+    #         "distance": {
+    #             "value": f"{distance_km:.2f}",
+    #             "unit": "km",
+    #             "dataSource": "Simulated",
+    #         },
+    #     }
 
-        # Add incoterms randomly
-        incoterm = random.choice(INCOTERMS_LIST)
-        if incoterm:
-            tce_data["incoterms"] = incoterm
+    #     # Calculate transport activity and emissions
+    #     transport_activity_val = (distance_km * mass_kg) / 1000.0
+    #     tce_data["transportActivity"] = f"{transport_activity_val:.3f}"
 
-        # Add temperature control with random selection
-        temp_control = random.choice(TEMP_CONTROL_OPTIONS)
-        if temp_control:
-            tce_data["temperatureControl"] = temp_control
+    #     # Add emission data
+    #     tce_data.update(calculate_emissions(transport_activity_val))
 
-        # Clean up data structure
-        tce_data_no_sets = convert_sets_to_lists(tce_data)
-        cleaned_tce_data = {k: v for k, v in tce_data_no_sets.items() if v is not None}
+    #     # Add TOC or HOC ID (Transport Operator Code or Handling Operator Code)
+    #     if random.choice([True, False]):
+    #         tce_data["tocId"] = f"TOC_{uuid.uuid4()}"
+    #         tce_data["hocId"] = None
+    #     else:
+    #         tce_data["hocId"] = f"HOC_{uuid.uuid4()}"
+    #         tce_data["tocId"] = None
 
-        # Serialize, sign, and prepare result
-        message_json_str = json.dumps(
-            cleaned_tce_data, sort_keys=True, separators=(",", ":")
-        )
-        signature_hex = sign_data(activity_private_key, message_json_str)
+    #     # Ensure at least one operator ID exists
+    #     if tce_data.get("tocId") is None and tce_data.get("hocId") is None:
+    #         tce_data["tocId"] = f"TOC_fallback_{uuid.uuid4()}"
 
-        result_dict = {
-            "activityDataJson": message_json_str,
-            "activitySignature": signature_hex,
-            "activityPublicKeyPem": activity_public_key_pem,
-        }
+    #     # Add previous TCE IDs if provided
+    #     if prev_tce_id:
+    #         tce_data["prevTceIds"] = (
+    #             [prev_tce_id] if not isinstance(prev_tce_id, list) else prev_tce_id
+    #         )
 
-        return {tce_id: result_dict}
+    #     # Add consignment ID with 70% probability
+    #     if random.random() < 0.7:
+    #         tce_data["consignmentId"] = f"CON_{uuid.uuid4()}"
+
+    #     # Add packaging data
+    #     tce_data.update(generate_package_data())
+
+    #     # Generate origin and destination
+    #     origin_city = random.choice(CITIES)
+    #     destination_city_options = [c for c in CITIES if c != origin_city]
+    #     if not destination_city_options:
+    #         destination_city_options = CITIES
+    #     destination_city = random.choice(destination_city_options)
+
+    #     tce_data["origin"] = generate_location_data(origin_city)
+    #     tce_data["destination"] = generate_location_data(destination_city)
+
+    #     # Calculate departure and arrival times
+    #     avg_speed_kmh = random.uniform(60, 80)
+    #     duration_hours = int((distance_km / avg_speed_kmh) * random.uniform(1, 1.2))
+    #     departure_time_iso = generate_iso_timestamp(start_time)
+    #     tce_data["departureAt"] = departure_time_iso
+    #     dt_departure = datetime.datetime.fromisoformat(
+    #         departure_time_iso.replace("Z", "+00:00")
+    #     )
+    #     tce_data["arrivalAt"] = generate_iso_timestamp(
+    #         dt_departure, add_hours=duration_hours
+    #     )
+
+    #     # Set flight and voyage numbers to None
+    #     tce_data["flightNo"] = None
+    #     tce_data["voyageNo"] = None
+
+    #     # Add incoterms randomly
+    #     incoterm = random.choice(INCOTERMS_LIST)
+    #     if incoterm:
+    #         tce_data["incoterms"] = incoterm
+
+    #     # Add temperature control with random selection
+    #     temp_control = random.choice(TEMP_CONTROL_OPTIONS)
+    #     if temp_control:
+    #         tce_data["temperatureControl"] = temp_control
+
+    #     # Clean up data structure
+    #     tce_data_no_sets = convert_sets_to_lists(tce_data)
+    #     cleaned_tce_data = {k: v for k, v in tce_data_no_sets.items() if v is not None}
+
+    #     # Serialize, sign, and prepare result
+    #     message_json_str = json.dumps(
+    #         cleaned_tce_data, sort_keys=True, separators=(",", ":")
+    #     )
+    #     signature_hex = sign_data(activity_private_key, message_json_str)
+
+    #     result_dict = {
+    #         "activityDataJson": message_json_str,
+    #         "activitySignature": signature_hex,
+    #         "activityPublicKeyPem": activity_public_key_pem,
+    #     }
+
+    #     return {tce_id: result_dict}

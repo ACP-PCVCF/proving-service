@@ -1,8 +1,10 @@
 from pydantic import BaseModel
 
+from models.product_footprint import Distance
+
 
 class SensorData(BaseModel):
-    pass
+    distance: Distance
 
 
 class TceSensorData(BaseModel):
