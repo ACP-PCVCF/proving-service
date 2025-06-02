@@ -1,35 +1,36 @@
-# Use official Rust image as build environment
-FROM rust:1.82 as builder
+# 1. Verwende ein offizielles Rust-Image als Basis
+FROM rust:1.87-slim
 
+# 2. Installiere Systemabhängigkeiten
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libssl-dev \
+    pkg-config \
+    curl \
+    git \
+    bash \
+    ca-certificates \
+    cmake \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create app directory
-WORKDIR /usr/src/app
+# 3. Setze das Arbeitsverzeichnis
+WORKDIR /app
 
-# Copy manifests first (for caching dependencies)
-COPY host ./host
-COPY Cargo.toml ./Cargo.toml 
-COPY Cargo.lock ./Cargo.lock 
-COPY target ./target
-COPY methods ./methods
-COPY host/src ./src
+# 4. Kopiere den Projektcode
+COPY . .
 
-RUN rustc --version
+# 5. Installiere rzup und Toolchain in einem Schritt
+RUN curl -L https://risczero.com/install | bash && \
+    /root/.risc0/bin/rzup install
 
-# Build in release mode
-RUN cargo build 
+# 6. Setze den PATH dauerhaft
+ENV PATH="/root/.risc0/bin:${PATH}"
 
+# 7. Baue dein Projekt
+RUN cargo build --release
 
-# Use a smaller image for runtime
-FROM debian:buster-slim
+# Port für den Webserver
+EXPOSE 3000
 
-# Install required dependencies for Kafka and your app
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-
-# Copy compiled binary from builder stage
-COPY --from=builder /usr/src/app/target/release/your_binary_name /usr/local/bin/your_binary_name
-
-# Set workdir
-WORKDIR /usr/local/bin
-
-# Run the app
-CMD ["./host"]
+# Server starten
+CMD ["target/release/host"]

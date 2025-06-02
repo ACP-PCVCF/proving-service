@@ -108,6 +108,7 @@ async fn main() {
                             let result_json = serde_json
                                 ::to_string(&proof_response)
                                 .expect("Failed to serialize proof_response");
+                            print!("{}", result_json);
                             let record = FutureRecord::to(TOPIC_OUT)
                                 .payload(&result_json)
                                 .key("some-key");
