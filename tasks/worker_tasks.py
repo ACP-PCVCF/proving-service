@@ -6,6 +6,7 @@ from services.database import HocTocService
 from utils.error_handling import on_error
 from utils.logging_utils import log_task_start, log_task_completion
 
+from services.service_implementations.service_sensordata import SensorDataService
 from models.product_footprint import ProductFootprint, Extension, ExtensionData, TceData, Distance
 
 
@@ -16,6 +17,7 @@ class CamundaWorkerTasks:
         self.worker = worker
         self.client = client
         self.hoc_toc_service = HocTocService()
+        self.sensor_data_service = SensorDataService()
 
         # Register all tasks
         self._register_tasks()
@@ -77,12 +79,19 @@ class CamundaWorkerTasks:
         element_id = job.element_id
         print(f"Element ID (from BPMN diagram): {element_id}")
 
-        # call greta with TceSensorData object, filled with new_tce_id, camunda Process Instance Key and camunda Activity Id
-        # receive instance of TceSensorData back
-        distance_from_sensor = random.uniform(10, 1000)
-
         product_footprint_verified = ProductFootprint.model_validate(
             product_footprint)
+        # call greta with TceSensorData object, filled with new_tce_id, camunda Process Instance Key and camunda Activity Id
+        # receive instance of TceSensorData back
+        sensor_data = self.sensor_data_service.call_service_sensordata({
+            "shipment_id": product_footprint_verified.extensions[0].data.shipmentId,
+            "tceId": new_tce_id,
+            "camundaProcessInstanceKey": str(process_id),
+            "camundaActivityId": element_id
+        })
+
+        distance_from_sensor = sensor_data.sensorData.distance.actual
+        #distance_from_sensor = random.uniform(10, 1000)
 
         prev_tce_ids = []
 
