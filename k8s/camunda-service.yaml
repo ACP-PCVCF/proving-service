@@ -21,7 +21,7 @@ spec:
          - containerPort: 8000
         env:
         - name: ZEEBE_ADDRESS
-          value: "camunda-zeebe-gateway.proofing-system.svc.cluster.local:26500" # host:port form, da  Zeebe gRPC erwartet nicht HTTP
+          value: "camunda-zeebe-gateway.proving-system.svc.cluster.local:26500" # host:port form, da  Zeebe gRPC erwartet nicht HTTP
         - name: PROOFING_SERVICE_API_URL
           value: "http://proofing-service:3000" #http connection
         - name: SENSOR_SERVICE_API_URL
