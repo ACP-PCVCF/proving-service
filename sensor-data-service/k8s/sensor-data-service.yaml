@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: sensor-data-service
-  namespace: proofing-system
+  namespace: proving-system
 spec:
   replicas: 1
   selector:
