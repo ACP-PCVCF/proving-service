@@ -2,6 +2,8 @@ from models.database import HocTocDatabase
 from models.proofing_document import ProofingDocument
 from models.product_footprint import ProductFootprint
 from typing import Optional, Dict, Any
+
+from models.sensor_data import TceSensorData
 from utils.data_utils import get_mock_data
 from models.hoc_toc_data import HocData, TocData
 
@@ -32,14 +34,17 @@ class HocTocService:
 
         return None
 
-    def collect_hoc_toc_data(self, product_footprint: dict):
+    def collect_hoc_toc_data(self, product_footprint: dict, sensor_data: Optional[list[dict]] = None) -> dict:
         """Collect HOC and TOC data based on product footprint and return a proofing document."""
         product_footprint_verified = ProductFootprint.model_validate(
             product_footprint)
         proofingDocument = ProofingDocument(
             productFootprint=product_footprint_verified,
             tocData=[],
-            hocData=[]
+            hocData=[],
+            signedSensorData=[] if sensor_data is None else [
+                TceSensorData.model_validate(sd) for sd in sensor_data
+            ]
         )
 
         for ids in product_footprint_verified.extensions[0].data.tces:
