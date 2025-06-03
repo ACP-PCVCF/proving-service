@@ -1,6 +1,8 @@
 import random
 import uuid
 import datetime
+from typing import Optional
+
 from pyzeebe import ZeebeWorker, ZeebeClient, Job
 from services.database import HocTocService
 from utils.error_handling import on_error
@@ -43,22 +45,23 @@ class CamundaWorkerTasks:
         self.worker.task(task_type="collect_hoc_toc_data",
                          exception_handler=on_error)(self.collect_hoc_toc_data)
 
-    def collect_hoc_toc_data(self, product_footprint: dict):
+    def collect_hoc_toc_data(self, product_footprint: dict, sensor_data: Optional[list[dict]] = None) -> dict:
         """
         Collect HOC and TOC data based on product footprint.
         Args:
             product_footprint: Product footprint data
+            sensor_data: Optional sensor data to include in the proofing document
         Returns:
             Dictionary containing the proofing document with HOC and TOC data
         """
 
         log_task_start("collect_hoc_toc_data")
-        result = self.hoc_toc_service.collect_hoc_toc_data(product_footprint)
+        result = self.hoc_toc_service.collect_hoc_toc_data(product_footprint, sensor_data)
         log_task_completion("collect_hoc_toc_data")
 
         return result
 
-    def transport_procedure(self, tocId: int, product_footprint: dict, job: Job) -> dict:
+    def transport_procedure(self, tocId: int, product_footprint: dict, job: Job, sensor_data: Optional[list[dict]] = None) -> dict:
         """
         Handle the hub procedure for a given tocId and product footprint.
 
@@ -66,6 +69,7 @@ class CamundaWorkerTasks:
             tocId: Unique identifier for the transport operation category (toc)
             job: Zeebe Job instance containing process instance and element ID
             product_footprint: Product footprint data
+            sensor_data: Optional list of previous sensor data dictionaries to append to
 
         Returns:
             product_footprint with tocId Information
@@ -83,14 +87,18 @@ class CamundaWorkerTasks:
             product_footprint)
         # call greta with TceSensorData object, filled with new_tce_id, camunda Process Instance Key and camunda Activity Id
         # receive instance of TceSensorData back
-        sensor_data = self.sensor_data_service.call_service_sensordata({
+        new_sensor_data = self.sensor_data_service.call_service_sensordata({
             "shipment_id": product_footprint_verified.extensions[0].data.shipmentId,
             "tceId": new_tce_id,
             "camundaProcessInstanceKey": str(process_id),
             "camundaActivityId": element_id
         })
+        if sensor_data is not None:
+            sensor_data.append(new_sensor_data.model_dump())
+        else:
+            sensor_data = [new_sensor_data.model_dump()]
 
-        distance_from_sensor = sensor_data.sensorData.distance.actual
+        distance_from_sensor = new_sensor_data.sensorData.distance.actual
         #distance_from_sensor = random.uniform(10, 1000)
 
         prev_tce_ids = []
@@ -118,9 +126,9 @@ class CamundaWorkerTasks:
         )
 
         result = {
-            "product_footprint": product_footprint_verified.model_dump()
+            "product_footprint": product_footprint_verified.model_dump(),
+            "sensor_data": sensor_data
         }
-
         log_task_completion("transport_procedure")
 
         return result
@@ -234,9 +242,9 @@ class CamundaWorkerTasks:
     def call_service_sensordata_certificate(self):
         pass
 
-    def send_to_proofing_service(self, proofing_document: dict) -> dict:
+    def send_to_proofing_service(self, proofing_document: dict, product_footprint: dict) -> dict:
         # call proofing service by api
-        product_footprint_reference = "123"
+        product_footprint_reference = product_footprint
 
         return {"product_footprint": product_footprint_reference}
 

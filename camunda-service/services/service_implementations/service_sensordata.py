@@ -105,7 +105,7 @@ class SensorDataService:
         log_service_call("SensorDataService", "__init__")
         self.base_url = os.getenv("SENSOR_SERVICE_API_URL", "http://localhost:8000")
 
-    def call_service_sensordata(self, variables):
+    def call_service_sensordata(self, variables) -> TceSensorData:
         shipment_id = variables.get("shipment_id", "unknown")
         tce_id = variables.get("tceId")
         process_instance_key = variables.get("camundaProcessInstanceKey")
