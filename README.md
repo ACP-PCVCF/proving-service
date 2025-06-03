@@ -22,6 +22,36 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
+### 3. Configure port forwarding
+To connect the Camunda Modeler to Zeebe, forward the gateway port:
+
+```bash
+kubectl port-forward svc/camunda-zeebe-gateway 26500:26500 -n proving-system
+```
+Keep this terminal open while deploying models from the Camunda Modeler.
+
+To view and manage process instances, forward the Camunda Operate service:
+
+```bash
+kubectl port-forward svc/camunda-operate 8081:80 -n proving-system
+```
+Then open your browser at: http://localhost:8081
+
+### 4. Deploy BPMN Models from Camunda Modeler
+In the Camunda Modeler:
+
+1. Open your BPMN files.
+
+2. Select Camunda 8 → Self-Managed.
+
+3. Use the following connection settings:
+
+- Zeebe Gateway Address: localhost:26500
+
+- Authentication: None
+
+4. Click Deploy Current Diagram.
+   
 ## Deploy Services (repeatable)
 After any changes to your services or code, simply run:
 
