@@ -67,6 +67,15 @@ This script:
 - Builds the Docker images
 - Applies the Kubernetes manifests
 
+## Monitor Logs and Status
+
+```bash
+kubectl get pods -n proving-system
+kubectl logs deployment/camunda-service -n proving-system
+kubectl logs deployment/sensor-data-service -n proving-system
+kubectl logs deployment/proving-service -n proving-system
+```
+
 ## Cleanup
 If you want to destroy your cluster, delete all your services/deployments and stop Minikube/Kind, run:
 
