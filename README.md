@@ -3,7 +3,7 @@
 ## Initial Setup (run once)
 ### Prerequisites
 - Docker
-- Minikube
+- Minikube/Kind
 - kubectl
 - Helm
 - Git
@@ -16,11 +16,11 @@ cd integration-repo
 ```
 
 ### 2. Run setup
-This will start the cluster and install Camunda:
+This will start the cluster and install Camunda (choose Kind or Minikube script folder):
 ```bash
-chmod +x setup.sh 
 ./setup.sh
 ```
+You might need to make the script executable first by using ```chmod +x setup.sh```.
 
 ### 3. Configure port forwarding
 To connect the Camunda Modeler to Zeebe, forward the gateway port:
@@ -51,19 +51,30 @@ In the Camunda Modeler:
 - Authentication: None
 
 4. Click Deploy Current Diagram.
+
    
-## Deploy Services (repeatable)
-After any changes to your services or code, simply run:
+## Rollout Services (repeatable)
+After any changes to your services or code, simply run (choose Kind or Minikube script folder):
 
 ```bash
-chmod +x setup.sh 
-./deploy.sh
+./rollout.sh
 ```
+You might need to make the script executable first by using ```chmod +x rollout.sh```.
+
 This script:
-- Starts Minikube (if not running)
+- Starts Minikube/Kind (if not running)
 - Switches to the correct Docker context
 - Builds the Docker images
 - Applies the Kubernetes manifests
+
+## Cleanup
+If you want to destroy your cluster, delete all your services/deployments and stop Minikube/Kind, run:
+
+```bash 
+./cleanup.sh
+```
+You might need to make the script executable first by using ```chmod +x cleanup.sh```.
+
 
 ## Git Subtrees – How We Use Them
 This repository integrates multiple service repositories using Git Subtrees.
