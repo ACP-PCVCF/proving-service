@@ -9,7 +9,6 @@ use sha2::{Sha256, Digest};
 use base64::{engine::general_purpose, Engine as _};
 
 
-
 risc0_zkvm::guest::entry!(main);
 
 #[derive(Deserialize, Serialize)]
