@@ -29,8 +29,5 @@ ENV PATH="/root/.risc0/bin:${PATH}"
 # 7. Baue dein Projekt
 RUN cargo build --release
 
-# Port für den Webserver
-EXPOSE 3000
-
 # Server starten
 CMD ["target/release/host"]

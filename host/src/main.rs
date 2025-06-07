@@ -80,11 +80,12 @@ async fn try_handle_raw_json(shipments_json: &str) -> Result<ProofResponse, ()> 
 
 #[tokio::main]
 async fn main() {
-    let brokers = "localhost:9092";
+    let brokers = std::env::var("KAFKA_BROKER").unwrap_or_else(|_| "localhost:9092".to_string());
     env_logger::init();
 
     let consumer: StreamConsumer = ClientConfig::new()
-        .set("bootstrap.servers", brokers)
+        .set("bootstrap.servers", &brokers)
+        .set("security.protocol", "PLAINTEXT")
         .set("group.id", "risc0-pcf-kafka-group")
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.commit", "true")
@@ -95,7 +96,8 @@ async fn main() {
     consumer.subscribe(&[TOPIC_IN]).unwrap();
 
     let producer: FutureProducer = ClientConfig::new()
-        .set("bootstrap.servers", brokers)
+        .set("bootstrap.servers", &brokers)
+        .set("security.protocol", "PLAINTEXT")
         .create()
         .expect("Producer creation failed");
 
@@ -150,6 +152,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     };
 
     let prover = default_prover();
+    println!("ELF size: {}", GUEST_PROOFING_LOGIC_ELF.len());
     let prove_info = match prover.prove(env, GUEST_PROOFING_LOGIC_ELF) {
         Ok(info) => info,
         Err(e) => {
