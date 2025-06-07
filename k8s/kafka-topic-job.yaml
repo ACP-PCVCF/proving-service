@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-kafka-topics
+  namespace: proving-system
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: kafka-topic-creator
+          image: bitnami/kafka:latest
+          command:
+            - bash
+            - -c
+            - |
+              kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic shipments --partitions 1 --replication-factor 1 && \
+              kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic pcf-results --partitions 1 --replication-factor 1

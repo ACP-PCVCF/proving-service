@@ -1,0 +1,20 @@
+kraft:
+  enabled: true
+
+zookeeper:
+  enabled: false
+
+auth:
+  enabled: false
+
+allowPlaintextListener: true
+
+listeners:
+  client:
+    protocol: PLAINTEXT
+
+advertisedListeners:
+  client:
+    name: PLAINTEXT
+    address: kafka.proving-system.svc.cluster.local
+    port: 9092

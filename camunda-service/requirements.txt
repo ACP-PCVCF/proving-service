@@ -1,4 +1,0 @@
-pyzeebe>=2.8.0
-cryptography>=39.0.0
-requests>=2.28.0
-pydantic>=2.0.0

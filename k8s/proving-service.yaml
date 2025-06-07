@@ -1,0 +1,29 @@
+        
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proving-service
+  namespace: proving-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: proving-service
+  template:
+    metadata:
+      labels:
+        app: proving-service
+    spec:
+      containers:
+        - name: proving-service
+          image: proving-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - name: KAFKA_BROKER
+              value: "kafka.proving-system.svc.cluster.local:9092"
+            - name: KAFKA_INPUT_TOPIC
+              value: "shipments"
+            - name: KAFKA_OUTPUT_TOPIC
+              value: "pcf_results"
