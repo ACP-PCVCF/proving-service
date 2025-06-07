@@ -27,10 +27,10 @@ helm repo update
 
 echo "Checking if Camunda is already installed..."
 if ! helm list -n $NAMESPACE | grep -q camunda; then
-  echo "🛠️ Installing Camunda in namespace $NAMESPACE..."
+  echo "Installing Camunda in namespace $NAMESPACE..."
   helm install camunda camunda/camunda-platform \
     -n $NAMESPACE --create-namespace \
-    -f ./camunda-platform-core-kind-values.yaml
+    -f ./camunda-platform/camunda-platform-core-kind-values.yaml
 else
   echo "Camunda is already installed in $NAMESPACE."
 fi
@@ -45,13 +45,13 @@ echo "Waiting for all Camunda pods to be ready..."
 kubectl wait --for=condition=ready pod --all -n $NAMESPACE --timeout=300s
 
 echo "Building Docker images..."
-docker build -t sensor-data-service:latest ./sensor-data-service 
-docker build -t camunda-service:latest ./camunda-service
+#docker build -t sensor-data-service:latest ./sensor-data-service 
+#docker build -t camunda-service:latest ./camunda-service
 # docker build --platform=linux/amd64 -t proving-service:latest ./proving-service
 
 echo "Deploying services to Kubernetes..."
-kubectl apply -f ./sensor-data-service/k8s/sensor-data-service.yaml -n $NAMESPACE
-kubectl apply -f ./camunda-service/k8s/camunda-service.yaml -n $NAMESPACE
+#kubectl apply -f ./sensor-data-service/k8s/sensor-data-service.yaml -n $NAMESPACE
+#kubectl apply -f ./camunda-service/k8s/camunda-service.yaml -n $NAMESPACE
 # kubectl apply -f ./proving-service/k8s/proving-service-deployment.yaml -n $NAMESPACE
 
 echo "Waiting for all deployed service pods to be ready..."

@@ -18,7 +18,7 @@ Install Camunda into the camunda namespace (or another of your choice) using you
 ```bash
 helm install camunda camunda/camunda-platform \
   -n proving-system --create-namespace \
-  -f ~/Documents/camunda-platform-core-kind-values.yaml
+  -f camunda-platform/camunda-platform-core-kind-values.yaml
 ```
 Notes:
 - If you do not use the default namespace, you must always include -n camunda (or your chosen namespace) in kubectl commands.

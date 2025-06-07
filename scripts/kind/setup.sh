@@ -28,7 +28,7 @@ if ! helm list -n $NAMESPACE | grep -q camunda; then
   echo "Installing Camunda in namespace $NAMESPACE..."
   helm install camunda camunda/camunda-platform \
     -n $NAMESPACE --create-namespace \
-    -f ./camunda-platform-core-kind-values.yaml
+    -f ./camunda-platform/camunda-platform-core-kind-values.yaml
 else
   echo "Camunda already installed in $NAMESPACE."
 fi
