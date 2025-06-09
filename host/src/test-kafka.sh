@@ -3,7 +3,7 @@
 INPUT_TOPIC="shipments"
 KAFKA_CONTAINER="host-kafka-1"
 BROKER="localhost:9092"
-JSON_FILE="shipment_3.json"
+JSON_FILE="shipment_1.json"
 
 # Prüfen, ob die JSON-Datei existiert
 if [ ! -f "$JSON_FILE" ]; then
