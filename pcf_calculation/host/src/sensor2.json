@@ -1,0 +1,10 @@
+[
+    {
+    "tceId": "tce_abc_789",
+    "camundaProcessInstanceKey": "camunda_key_456",
+    "camundaActivityId": "activity_xyz_123",
+    "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp7jrcfor9ISohAMIB5th\neFWUYkTQ4UjHEdPtBDCl/riRPMnAygM8znDkHCcO+G0JSdGn4wWR1vgaVqwyZHdw\nsqEtF2Z/0VpUBcm4Z4ZDSFaWr/waZzV8GknDvYoWkPJDTPMglGCQMXBtnL5NXITC\nxkXQDJeIFitFsuo8r5Kc7149YWQg6ttirocor6y0Hcv0m37IxI+MAV1zZlshBpoq\njUqbe8te0RLhW0orbPmrTzMW5RwVQPFnF16uNxqr4L+z98hoLxNvkYRQtWbRG3uf\nOAyMUeyf3p0RKFOklRnySGBkLgrms024+G4KOMQggWJDdk30p8hycrOahoclQ6Tx\nMwIDAQAB\n-----END PUBLIC KEY-----\n",
+    "signedSensorData": "LxspBJZNu5xDZxmlgAKQVH4doyxfB2s343s+L4Yr94abq/LWzkl6LDSZlJ//q1j0rOBJKFWdLSVzFBpvgxhs7jSOVb+wDSiUUOcjDPDzv1lpUjCESSnmh881ZMAoXwpGbK1Vj7Xxbjzjd6V7HUwzoLf5qcmxRCj8eebrqFAVyYghkSHX3fHgwgpyP3CiHjiBQ9P1LnNjUKThuslZL59gGZgh5Bw5h/hy6lG73wVaApXtX6pMcZ8+xrzO3g8eesQ7uIOLRA91eMCgsF4LJ05Y2fA732B78um+Nv4B4+YCafG7zX6bfCVS13eTy21C4q2slEJpyN9D0F+sp0Bn26lSYw==",
+    "sensorData": "{\"distance\":{\"actual\":29.29,\"gcd\":null,\"sfd\":null}}"
+    }
+]

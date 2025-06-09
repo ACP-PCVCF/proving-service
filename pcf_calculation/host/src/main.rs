@@ -1,5 +1,5 @@
 use methods::{GUEST_CODE_FOR_ZK_PROOF_ELF, GUEST_CODE_FOR_ZK_PROOF_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv};
+use risc0_zkvm::{default_prover, ExecutorEnv, Digest};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string_pretty}; 
 use std::fs;
@@ -14,23 +14,63 @@ struct Activity {
     e_type: String,
 }
 
-#[derive(Deserialize, Serialize)]
-struct ShipmentInfo {
-    activity_data_json: String,
-    activity_signature: String,
-    activity_public_key_pem: String,
+//#[derive(Deserialize, Serialize)]
+//struct ShipmentInfo {
+//    activity_data_json: String,
+//    activity_signature: String,
+//    activity_public_key_pem: String,
+//}
+
+#[derive(Deserialize, Debug)]
+struct OgJsonTopLevel {
+    #[serde(rename = "productFootprint")]
+    product_footprint: serde_json::Value, // Oder eine detailliertere Struktur
+    #[serde(rename = "tocData")]
+    toc_data: Vec<serde_json::Value>, // Oder eine detailliertere Struktur
+    #[serde(rename = "hocData")]
+    hoc_data: Vec<serde_json::Value>, // Oder eine detailliertere Struktur
+    #[serde(rename = "signedSensorData")]
+    signed_sensor_data_list: Vec<SignedSensorData>, // Hier ist Ihre Liste
 }
 
-#[derive(Deserialize, Serialize)]
-struct Shipment {
-    shipment_id: String,
-    info: ShipmentInfo,
+// Diese Strukturen müssen sowohl im Host als auch im Gast-Code
+// (falls SignedSensorData dort verwendet wird und dieselbe Struktur hat)
+// definiert oder importiert werden.
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct Distance {
+    actual: f64, // oder f32, je nach Genauigkeit. JSON 'number' wird oft zu f64.
+    gcd: Option<f64>, // Da es 'null' sein kann
+    sfd: Option<f64>, // Da es 'null' sein kann
+}
+
+/*#[derive(Deserialize, Serialize, Debug, Clone)]
+struct SensorDataPayload {
+    distance: Distance,
+}*/
+
+// Ihre SignedSensorData-Struktur wird dann angepasst:
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct SignedSensorData {
+    #[serde(rename = "tceId")]
+    tce_id: String,
+    #[serde(rename = "camundaProcessInstanceKey")]
+    camunda_process_instance_key: String,
+    #[serde(rename = "camundaActivityId")]
+    camunda_activity_id: String,
+    sensorkey: String,
+    #[serde(rename = "signedSensorData")]
+    signed_sensor_data: String, // Behält den ursprünglichen Namen für Klarheit
+    #[serde(rename = "sensorData")]
+    //sensor_data: SensorDataPayload, // GEÄNDERT: von String zu SensorDataPayload
+    sensor_data: String
 }
 
 #[derive(Deserialize, Serialize)]
 struct CombinedInput {
     activities: Vec<Activity>,
-    shipments: Vec<Shipment>,
+    //shipments: Vec<Shipment>,
+    signatures: Vec<SignedSensorData>,
 }
 
 #[derive(Serialize)]
@@ -50,14 +90,21 @@ fn main() {
 
     let activities: Vec<Activity> = from_str(&activity_json).unwrap();
 
-    let shipment_json =
-        fs::read_to_string("host/src/shipments.json").expect("Shipments file not readable");
+    let signatures_json =
+        fs::read_to_string("host/src/og.json").expect("Sensor file not readable");
+    // Zuerst in ein Array von OgJsonTopLevel-Objekten deserialisieren
+    let top_level_data_vec: Vec<OgJsonTopLevel> = from_str(&signatures_json).unwrap();
 
-    let shipments: Vec<Shipment> = from_str(&shipment_json).unwrap();
+    // Wenn Sie sicher sind, dass es nur ein Element im äußeren Array von og.json gibt:
+    let signatures: Vec<SignedSensorData> = if let Some(top_level_data) = top_level_data_vec.get(0) {
+        top_level_data.signed_sensor_data_list.clone()
+    } else {
+        panic!("og.json ist leer oder hat nicht das erwartete Format");
+    };
 
     let combined_input = CombinedInput {
         activities,
-        shipments,
+        signatures,
     };
 
     let env = ExecutorEnv::builder()
