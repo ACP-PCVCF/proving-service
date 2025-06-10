@@ -8,7 +8,7 @@ risc0-zkvm = { version = "^2.0.0", default-features = false, features = [
     'std',
 ] }
 proving_service_core = { path = "../../core" }
-
+const-oid = { version = "0.10", default-features = false }
 
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 rsa = "0.9"

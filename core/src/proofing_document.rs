@@ -10,7 +10,7 @@ pub struct TceSensorData {
     pub tceId: String,
     pub sensorkey: String,
     pub signedSensorData: String,
-    pub sensorData: SensorData,
+    pub sensorData: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

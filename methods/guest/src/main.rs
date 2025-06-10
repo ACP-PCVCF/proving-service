@@ -3,9 +3,9 @@ extern crate alloc;
 use alloc::{ vec::Vec, string::String, format };
 use risc0_zkvm::guest::env;
 use serde::{ Deserialize, Serialize };
-use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
+use rsa::{ RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey };
 use rsa::pkcs1v15::Pkcs1v15Sign;
-use sha2::{Sha256, Digest as Sha2DigestTrait};
+use sha2::{ Sha256, Digest as Sha2DigestTrait };
 use base64::{ engine::general_purpose, Engine as _ };
 use std::{ * };
 use serde_json;
@@ -13,9 +13,9 @@ use serde_json::{ Value };
 use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
-use const_oid::AssociatedOid;
+use rsa::pkcs8::AssociatedOid;
 use pkcs1::ObjectIdentifier;
-use digest::{
+use sha2::digest::{
     self,
     Digest as DigestTrait,
     OutputSizeUser,
@@ -23,12 +23,10 @@ use digest::{
     FixedOutputReset,
     generic_array::GenericArray,
     FixedOutput,
-    Update
+    Update,
 };
 
-
 //risc0_zkvm::guest::entry!(main);
-
 
 fn sum_emissions(val: f32, emissions: f32) -> f32 {
     return val + emissions;
@@ -38,18 +36,14 @@ fn sum_mass(mass: f32, total_mass: f32) -> f32 {
     return total_mass + mass;
 }
 
-
-fn verify_signature(info: &SignedSensorData) -> bool {
-    
-    let payload = &info.sensor_data;
-    let signature_b64 = &info.signed_sensor_data;
+fn verify_signature(info: &TceSensorData) -> bool {
+    let payload = &info.sensorData;
+    let signature_b64 = &info.signedSensorData;
     let public_key_pem = &info.sensorkey;
 
     env::log(format!("Payload: {}", payload).as_str());
     env::log(format!("Signature: {}", signature_b64).as_str());
     env::log(format!("Public Key PEM: {}", public_key_pem).as_str());
-
-
 
     let public_key = match RsaPublicKey::from_public_key_pem(public_key_pem) {
         Ok(pk) => pk,
@@ -59,9 +53,14 @@ fn verify_signature(info: &SignedSensorData) -> bool {
                 Ok(pk_fallback) => {
                     env::log("Warning: Public key loaded as PKCS#1, SPKI is preferred.");
                     pk_fallback
-                },
+                }
                 Err(e_fallback) => {
-                    env::log(format!("Error loading the public key even as PKCS#1: {:?}", e_fallback).as_str());
+                    env::log(
+                        format!(
+                            "Error loading the public key even as PKCS#1: {:?}",
+                            e_fallback
+                        ).as_str()
+                    );
                     return false;
                 }
             }
@@ -124,12 +123,12 @@ impl Reset for Sha256WithOid {
 }
 
 impl FixedOutputReset for Sha256WithOid {
-     fn finalize_fixed_reset(&mut self) -> GenericArray<u8, Self::OutputSize> {
+    fn finalize_fixed_reset(&mut self) -> GenericArray<u8, Self::OutputSize> {
         FixedOutputReset::finalize_fixed_reset(&mut self.0)
-     }
-     fn finalize_into_reset(&mut self, out: &mut GenericArray<u8, Self::OutputSize>) {
+    }
+    fn finalize_into_reset(&mut self, out: &mut GenericArray<u8, Self::OutputSize>) {
         FixedOutputReset::finalize_into_reset(&mut self.0, out);
-     }
+    }
 }
 
 impl DigestTrait for Sha256WithOid {
@@ -150,7 +149,7 @@ impl DigestTrait for Sha256WithOid {
     }
 
     fn chain_update(self, data: impl AsRef<[u8]>) -> Self {
-         Sha256WithOid(self.0.chain_update(data))
+        Sha256WithOid(self.0.chain_update(data))
     }
 
     fn finalize_into(self, out: &mut GenericArray<u8, Self::OutputSize>) {
@@ -184,6 +183,9 @@ fn main() {
     let mut transport_pcf: f64 = 0.0;
 
     let tces: &Vec<TCE> = &product_footprint.productFootprint.extensions[0].data.tces;
+    let ssd: &Vec<TceSensorData> = &product_footprint.signedSensorData
+        .as_ref()
+        .expect("No signedSensorData found");
 
     for tce in tces {
         if tce.tocId.is_some() {
@@ -192,6 +194,29 @@ fn main() {
                     &product_footprint.tocData,
                     tce.tocId.clone().unwrap()
                 );
+
+                let found_tsd_iter = ssd.iter().find(|obj| obj.tceId == tce.tceId);
+                if let Some(tsd) = found_tsd_iter {
+                    if verify_signature(tsd) {
+                        env::log(
+                            format!(
+                                "Verification for sensor data related to TCE '{}', sensor key snippet '{}...': SUCCESS",
+                                tsd.tceId,
+                                tsd.sensorkey.chars().take(10).collect::<String>()
+                            ).as_str()
+                        );
+                    } else {
+                        env::log(
+                            format!(
+                                "Verification for sensor data related to TCE '{}', sensor key snippet '{}...': INVALID",
+                                tsd.tceId,
+                                tsd.sensorkey.chars().take(10).collect::<String>()
+                            ).as_str()
+                        );
+                        env::exit(1);
+                    }
+                }
+
                 let emissions: f64 = tce.mass * emission_factor * distance.actual; // TODO: Add here a correct emission factor later
                 println!("Emissions from TOC {}: {} kg CO2e", tce.tceId, emissions);
                 transport_pcf += emissions;
@@ -208,15 +233,6 @@ fn main() {
             let emissions: f64 = tce.mass * emission_factor; //TODO: Add here the correct emission factor later
             println!("Emissions form HOC {}: {} kg CO2e", tce.tceId, emissions);
             transport_pcf += emissions;
-        }
-    }
-
-    let ssds: &Vec<SignedSensorData> = &product_footprint.signedSensorData;
-    for ssd in ssds {
-        if verify_signature(ssd) {
-            env::log(format!("Verification for sensor data related to TCE '{}', sensor key snippet '{}...': SUCCESS", ssd.tceId, ssd.sensorkey.chars().take(10).collect::<String>()).as_str());
-        } else {
-            env::log(format!("Verification for sensor data related to TCE '{}', sensor key snippet '{}...': INVALID", ssd.tceId, ssd.sensorkey.chars().take(10).collect::<String>()).as_str());   
         }
     }
 
@@ -252,6 +268,6 @@ fn main() {
     }
 
     env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
-    env::log(&format!("End of guest programm. Proof can take a while..."));
     env::commit(&transport_pcf);
+    env::log(&format!("End of guest programm. Proof can take a while..."));
 }

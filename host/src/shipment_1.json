@@ -143,7 +143,7 @@
     ],
     "signedSensorData": [
         {
-            "tceId": "tce_abc_789",
+            "tceId": "dcfdf919-6969-4f68-95e4-670bb6a76d4e",
             "camundaProcessInstanceKey": "camunda_key_456",
             "camundaActivityId": "activity_xyz_123",
             "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtfdhXjw5onAyNjgHQpVP\nrLuzeqKpOrlTWBntuY7J7sCM4DEP37mTXlCf81Jh/bZESp1TRzbnImrjp7DeCZXh\njObndNRBpZtZOhpR1jzMB8yXWsh7Fs7C8Wca4VGWRekPESP/0bpoCwJQQisKQbPZ\nwwLpESfOdWuznfd1Gxwi4wy8QDvf9mO6AyuVlBuUa1pXQPqJoWjEZExdjGhzJS1o\njBzGjCaQB0THLFyy6cl4LNP6Uh9U6HZvR9Qr+BVhvXuOpQXGZumhTz4XkKvLeiFl\nY3CXaHz4PJz97RIkBSjlkygXonvlGx+PKUfV0nYoMoFFEMgqMBLeSq+JAtve1YHm\nuwIDAQAB\n-----END PUBLIC KEY-----\n",
