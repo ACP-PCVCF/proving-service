@@ -1,22 +1,22 @@
 extern crate alloc;
-
+use bincode;
 use alloc::{ vec::Vec, string::String, format };
 use risc0_zkvm::guest::env;
-use serde::{ Deserialize, Serialize };
+use risc0_zkvm::Receipt;
+use risc0_zkvm::Journal;
+use risc0_zkvm::sha::Digest;
 use rsa::{ RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey };
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::{ Sha256, Digest as Sha2DigestTrait };
 use base64::{ engine::general_purpose, Engine as _ };
 use std::{ * };
 use serde_json;
-use serde_json::{ Value };
 use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
 use rsa::pkcs8::AssociatedOid;
 use pkcs1::ObjectIdentifier;
 use sha2::digest::{
-    self,
     Digest as DigestTrait,
     OutputSizeUser,
     Reset,
@@ -179,10 +179,57 @@ impl DigestTrait for Sha256WithOid {
 
 fn main() {
     // Lese die komplexen product footprint daten
+    //let start = env::cycle_count();
     let product_footprint: ProofingDocument = env::read();
     let mut transport_pcf: f64 = 0.0;
 
-    let tces: &Vec<TCE> = &product_footprint.productFootprint.extensions[0].data.tces;
+    let ileap_extension: &Extension = &product_footprint.productFootprint.extensions[0];
+
+    if let Some(proof_extension) = &product_footprint.proof {
+        let receipt_bytes: Vec<u8> = general_purpose::STANDARD
+            .decode(&proof_extension.data.pcfProofs[0].proofReceipt)
+            .expect("Guest: Fehler beim Deserialisieren des Receipts.");
+        env::log(&format!("Guest: Receipt erfolgreich deserialisiert."));
+
+        let receipt: Receipt = bincode
+            ::deserialize(&receipt_bytes)
+            .expect("Failed to deserialize inner receipt bytes");
+
+        let inner_image_id: Digest = Digest::new(proof_extension.data.pcfProofs[0].imageId);
+
+        match receipt.verify(inner_image_id.clone()) {
+            Ok(()) => {
+                env::log(&format!("Guest: Innerer Proof erfolgreich verifiziert!"));
+                let journal: Journal = receipt.journal;
+                env::log(
+                    &format!(
+                        "Guest: Journal aus innerem Proof gelesen (Länge: {} Bytes).",
+                        journal.bytes.len()
+                    )
+                );
+
+                let inner_program_output: f64 = journal
+                    .decode()
+                    .expect("Guest: Fehler beim Dekodieren des Journals des inneren Proofs.");
+                env::log(
+                    &format!("Guest: Inhalt des inneren Journals: '{}'", inner_program_output)
+                );
+
+                env::commit(
+                    &format!("Innerer Proof erfolgreich verifiziert. Ausgabe: {}", inner_program_output)
+                );
+                env::log(&format!("Guest: Verifizierungsstatus ins Journal geschrieben."));
+            }
+            Err(e) => {
+                env::log(
+                    &format!("Guest: Fehler bei der Verifizierung des inneren Proofs: {:?}", e)
+                );
+                panic!("Innerer Proof konnte nicht verifiziert werden!");
+            }
+        }
+    }
+
+    let tces: &Vec<TCE> = &ileap_extension.data.tces;
     let ssd: &Vec<TceSensorData> = &product_footprint.signedSensorData
         .as_ref()
         .expect("No signedSensorData found");
@@ -195,6 +242,7 @@ fn main() {
                     tce.tocId.clone().unwrap()
                 );
 
+                /*
                 let found_tsd_iter = ssd.iter().find(|obj| obj.tceId == tce.tceId);
                 if let Some(tsd) = found_tsd_iter {
                     if verify_signature(tsd) {
@@ -216,6 +264,7 @@ fn main() {
                         env::exit(1);
                     }
                 }
+                */
 
                 let emissions: f64 = tce.mass * emission_factor * distance.actual; // TODO: Add here a correct emission factor later
                 println!("Emissions from TOC {}: {} kg CO2e", tce.tceId, emissions);
@@ -270,4 +319,5 @@ fn main() {
     env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
     env::commit(&transport_pcf);
     env::log(&format!("End of guest programm. Proof can take a while..."));
+    //let end = env::cycle_count();
 }

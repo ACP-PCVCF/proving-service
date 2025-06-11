@@ -138,7 +138,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
             return None;
         }
     };
-
+    println!("**{:#?}**", &proofing_document);
     let env = match
         ExecutorEnv::builder()
             .write(&proofing_document)
