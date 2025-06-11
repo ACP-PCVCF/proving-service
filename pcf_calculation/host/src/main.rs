@@ -3,6 +3,7 @@ use risc0_zkvm::{default_prover, ExecutorEnv, Digest};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string_pretty}; 
 use std::fs;
+use metrics::metrics::{guest_metrics::GuestMetrics, host_metrics::HostMetrics};
 
 mod verify; 
 
@@ -119,7 +120,7 @@ fn main() {
 
     let receipt = prove_info.receipt;
 
-    let pcf_total: u32 = receipt.journal.decode().unwrap();
+    let (pcf_total, guest_metrics_from_journal): (u32, GuestMetrics) = receipt.journal.decode().unwrap();
 
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
 
@@ -135,6 +136,24 @@ fn main() {
         image_id: image_id_hex,
         receipt,
     };
+
+    println!("RISC-V Zyklen (aus Guest): {}", guest_metrics_from_journal.risc_v_cycles);
+
+        // Host-Metriken initialisieren und befüllen
+    let mut host_metrics = HostMetrics::new(
+        "pcf_calculation_metrics.csv".to_string(), // Name der CSV-Datei
+        "run_001".to_string()                      // Eindeutige ID für diesen Lauf
+    );
+
+    host_metrics.runtime(prove_duration.as_secs_f64());
+    host_metrics.input_size(input_size_bytes);
+    host_metrics.guest_cycles(&guest_metrics_from_journal);
+
+    // Metriken in CSV schreiben
+    match host_metrics.metrics_write_csv() {
+        Ok(_) => println!("Metriken erfolgreich in pcf_calculation_metrics.csv geschrieben."),
+        Err(e) => eprintln!("Fehler beim Schreiben der Metriken: {}", e),
+    }
 
     let receipt_json = to_string_pretty(&export).expect("JSON serialization failed");
 

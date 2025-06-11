@@ -19,6 +19,7 @@ use digest::{
     FixedOutput,
     Update
 };
+use metrics::metrics::guest_metrics::GuestMetrics;
 
 risc0_zkvm::guest::entry!(main);
 
@@ -238,8 +239,14 @@ fn verify_signature(info: &SignedSensorData) -> bool {
 }
 
 fn main() {
+    // Metriken initialisieren
+    let mut guest_metrics = GuestMetrics::new();
+
     let input: CombinedInput = env::read();
     let valid_activities: Vec<Activity> = input.activities; 
+
+    // Start der Zykluszählung
+    guest_metrics.start_riscv_cyc_count();
         
     for signature in input.signatures {
         if verify_signature(&signature) {
@@ -272,5 +279,11 @@ fn main() {
     let pcf_total: u32 = emission_diesel + emission_gasoline + emission_greenpower;
 
     env::log(format!("PCF total (kg CO2e): {}", pcf_total).as_str());
-    env::commit(&pcf_total);
+    //env::commit(&pcf_total);
+
+        // Ende der Zykluszählung
+    guest_metrics.end_riscv_cyc_count();
+
+    // Ergebnis und Metriken an den Host committen
+    env::commit(&(&pcf_total, guest_metrics));
 }
