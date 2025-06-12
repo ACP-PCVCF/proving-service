@@ -141,14 +141,6 @@
             "hubActivityUnit": "kg dispensed"
         }
     ],
-    "signedSensorData": [
-        {
-            "tceId": "dcfdf919-6969-4f68-95e4-670bb6a76d4e",
-            "camundaProcessInstanceKey": "camunda_key_456",
-            "camundaActivityId": "activity_xyz_123",
-            "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtfdhXjw5onAyNjgHQpVP\nrLuzeqKpOrlTWBntuY7J7sCM4DEP37mTXlCf81Jh/bZESp1TRzbnImrjp7DeCZXh\njObndNRBpZtZOhpR1jzMB8yXWsh7Fs7C8Wca4VGWRekPESP/0bpoCwJQQisKQbPZ\nwwLpESfOdWuznfd1Gxwi4wy8QDvf9mO6AyuVlBuUa1pXQPqJoWjEZExdjGhzJS1o\njBzGjCaQB0THLFyy6cl4LNP6Uh9U6HZvR9Qr+BVhvXuOpQXGZumhTz4XkKvLeiFl\nY3CXaHz4PJz97RIkBSjlkygXonvlGx+PKUfV0nYoMoFFEMgqMBLeSq+JAtve1YHm\nuwIDAQAB\n-----END PUBLIC KEY-----\n",
-            "signedSensorData": "KI7bIIU+9TWLbQT0/bCk6B552/9a5r0xcMAGXgy5rgrpzWB+VRLLGo3xkeyS3BLMZX4CscEAKE/1DwQi+Yj6+eZCnLggc0ZSrggYobm328flgb9CAwM6QffbXNvX0hmUIo6vWsuLpEFvqYc4Aq+qXmlUlJzh0pr9uYj4KKxLbe3hIoUshBoiwMW+yaoB5EQeDc4lvZ1WRYXzNjtcZ0DavOv+nt4kPYazX/jN0hCSvxoWcBHIpbjYYYBFxt6Fii+pTGSFtOz4j/xhOAD2O4bRp8Tl5kW6nFopOECupszrovbo0HopvL00qgs5YnjdXu48w1JQbS8GiuCCZSCO4zxEeA==",
-            "sensorData": "{\"distance\":{\"actual\":207.43,\"gcd\":null,\"sfd\":null}}"
-        }
-    ], "proof": null
+    "signedSensorData":null,
+     "proof": null
 }

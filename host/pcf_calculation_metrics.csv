@@ -1,0 +1,5 @@
+run_id,proving_time_seconds,inputs_size_bytes,proof_size_bytes,cpu_cycles_host,guest_cycles,segments,total_cycles
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cyclesrun_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+1,pcf_calculation_metrics.csv,0.35587539,333127,111,441755
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+001,pcf_calculation_metrics.csv,0.39516228,333127,111,441755

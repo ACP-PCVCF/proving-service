@@ -150,5 +150,17 @@
             "signedSensorData": "KI7bIIU+9TWLbQT0/bCk6B552/9a5r0xcMAGXgy5rgrpzWB+VRLLGo3xkeyS3BLMZX4CscEAKE/1DwQi+Yj6+eZCnLggc0ZSrggYobm328flgb9CAwM6QffbXNvX0hmUIo6vWsuLpEFvqYc4Aq+qXmlUlJzh0pr9uYj4KKxLbe3hIoUshBoiwMW+yaoB5EQeDc4lvZ1WRYXzNjtcZ0DavOv+nt4kPYazX/jN0hCSvxoWcBHIpbjYYYBFxt6Fii+pTGSFtOz4j/xhOAD2O4bRp8Tl5kW6nFopOECupszrovbo0HopvL00qgs5YnjdXu48w1JQbS8GiuCCZSCO4zxEeA==",
             "sensorData": "{\"distance\":{\"actual\":207.43,\"gcd\":null,\"sfd\":null}}"
         }
-    ], "proof": null
+    ], "proof":
+    {
+        "specVersion": "0.1.0",
+        "dataSchema": "https://github.com/todo.json",
+        "author": "reine",
+        "data": {
+            "mass": 10918,
+            "shipmentId": "SHIP_b75778d7-f4be-4add-b904-9c831030b497",
+            "pcfProofs": [
+                /* INSERT Output Json here */
+            ]
+        }
+    }
 }

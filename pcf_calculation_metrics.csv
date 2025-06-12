@@ -1,0 +1,10 @@
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+1,pcf_calculation_metrics.csv,0.46674027,332956,111,441755
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+1,pcf_calculation_metrics.csv,1.003379468,5569,112,41463
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+2,pcf_calculation_metrics.csv,0.904608095,6712,112,10015348
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+3,pcf_calculation_metrics.csv,12.191456938,332956,240,8029762349092201842
+run_id,csv_file_path,proving_time_seconds,inputs_size_bytes,proof_size_bytes,guest_cycles
+1,pcf_calculation_metrics.csv,11.35679969,332956,240,8029762349092201842

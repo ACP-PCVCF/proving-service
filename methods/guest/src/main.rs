@@ -1,4 +1,5 @@
 extern crate alloc;
+mod guest_metrics;
 use bincode;
 use alloc::{ vec::Vec, string::String, format };
 use risc0_zkvm::guest::env;
@@ -10,10 +11,10 @@ use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::{ Sha256, Digest as Sha2DigestTrait };
 use base64::{ engine::general_purpose, Engine as _ };
 use std::{ * };
-use serde_json;
 use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
+use guest_metrics::GuestMetrics;
 use rsa::pkcs8::AssociatedOid;
 use pkcs1::ObjectIdentifier;
 use sha2::digest::{
@@ -178,8 +179,9 @@ impl DigestTrait for Sha256WithOid {
 }
 
 fn main() {
+    let mut guest_metrics = GuestMetrics::new();
+    guest_metrics.start_riscv_cyc_count();
     // Lese die komplexen product footprint daten
-    //let start = env::cycle_count();
     let product_footprint: ProofingDocument = env::read();
     let mut transport_pcf: f64 = 0.0;
 
@@ -230,10 +232,11 @@ fn main() {
     }
 
     let tces: &Vec<TCE> = &ileap_extension.data.tces;
+    /*
     let ssd: &Vec<TceSensorData> = &product_footprint.signedSensorData
         .as_ref()
         .expect("No signedSensorData found");
-
+*/
     for tce in tces {
         if tce.tocId.is_some() {
             if let Some(distance) = &tce.distance {
@@ -242,29 +245,28 @@ fn main() {
                     tce.tocId.clone().unwrap()
                 );
 
-                /*
-                let found_tsd_iter = ssd.iter().find(|obj| obj.tceId == tce.tceId);
-                if let Some(tsd) = found_tsd_iter {
-                    if verify_signature(tsd) {
-                        env::log(
-                            format!(
-                                "Verification for sensor data related to TCE '{}', sensor key snippet '{}...': SUCCESS",
-                                tsd.tceId,
-                                tsd.sensorkey.chars().take(10).collect::<String>()
-                            ).as_str()
-                        );
-                    } else {
-                        env::log(
-                            format!(
-                                "Verification for sensor data related to TCE '{}', sensor key snippet '{}...': INVALID",
-                                tsd.tceId,
-                                tsd.sensorkey.chars().take(10).collect::<String>()
-                            ).as_str()
-                        );
-                        env::exit(1);
+                if let Some(ssd) = &product_footprint.signedSensorData {
+                    let found_tsd_iter = ssd.iter().find(|obj| obj.tceId == tce.tceId);
+                    if let Some(tsd) = found_tsd_iter {
+                        if verify_signature(tsd) {
+                            env::log(
+                                format!(
+                                    "Verification for sensor data related to TCE '{}', sensor key snippet '{}...': SUCCESS",
+                                    tsd.tceId,
+                                    tsd.sensorkey.chars().take(10).collect::<String>()
+                                ).as_str()
+                            );
+                        } else {
+                            env::log(
+                                format!(
+                                    "Verification for sensor data related to TCE '{}', sensor key snippet '{}...': INVALID",
+                                    tsd.tceId,
+                                    tsd.sensorkey.chars().take(10).collect::<String>()
+                                ).as_str()
+                            );
+                        }
                     }
                 }
-                */
 
                 let emissions: f64 = tce.mass * emission_factor * distance.actual; // TODO: Add here a correct emission factor later
                 println!("Emissions from TOC {}: {} kg CO2e", tce.tceId, emissions);
@@ -317,7 +319,8 @@ fn main() {
     }
 
     env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
-    env::commit(&transport_pcf);
+
+    guest_metrics.end_riscv_cyc_count();
+    env::commit(&(&transport_pcf, &guest_metrics.risc_v_cycles));
     env::log(&format!("End of guest programm. Proof can take a while..."));
-    //let end = env::cycle_count();
 }
