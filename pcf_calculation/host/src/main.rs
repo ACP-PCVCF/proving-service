@@ -1,11 +1,17 @@
 use methods::{GUEST_CODE_FOR_ZK_PROOF_ELF, GUEST_CODE_FOR_ZK_PROOF_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv, Digest};
+use risc0_zkvm::{default_prover, ExecutorEnv, Digest, Receipt}; 
 use serde::{Deserialize, Serialize};
-use serde_json::{from_str, to_string_pretty}; 
+use serde_json::{to_string_pretty, from_str};
+use std::error::Error;
 use std::fs;
-use metrics::metrics::{guest_metrics::GuestMetrics, host_metrics::HostMetrics};
+use std::time::Instant; 
+use uuid::Uuid; 
 
-mod verify; 
+use csv::Writer;
+#[cfg(target_os = "linux")]
+use perf_event::Builder;
+use postcard;
+mod verify;
 
 #[derive(Deserialize, Serialize)]
 struct Activity {
@@ -15,42 +21,25 @@ struct Activity {
     e_type: String,
 }
 
-//#[derive(Deserialize, Serialize)]
-//struct ShipmentInfo {
-//    activity_data_json: String,
-//    activity_signature: String,
-//    activity_public_key_pem: String,
-//}
-
 #[derive(Deserialize, Debug)]
 struct OgJsonTopLevel {
     #[serde(rename = "productFootprint")]
-    product_footprint: serde_json::Value, // Oder eine detailliertere Struktur
+    product_footprint: serde_json::Value,
     #[serde(rename = "tocData")]
-    toc_data: Vec<serde_json::Value>, // Oder eine detailliertere Struktur
+    toc_data: Vec<serde_json::Value>,
     #[serde(rename = "hocData")]
-    hoc_data: Vec<serde_json::Value>, // Oder eine detailliertere Struktur
+    hoc_data: Vec<serde_json::Value>,
     #[serde(rename = "signedSensorData")]
-    signed_sensor_data_list: Vec<SignedSensorData>, // Hier ist Ihre Liste
+    signed_sensor_data_list: Vec<SignedSensorData>,
 }
-
-// Diese Strukturen müssen sowohl im Host als auch im Gast-Code
-// (falls SignedSensorData dort verwendet wird und dieselbe Struktur hat)
-// definiert oder importiert werden.
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct Distance {
-    actual: f64, // oder f32, je nach Genauigkeit. JSON 'number' wird oft zu f64.
-    gcd: Option<f64>, // Da es 'null' sein kann
-    sfd: Option<f64>, // Da es 'null' sein kann
+    actual: f64,
+    gcd: Option<f64>,
+    sfd: Option<f64>,
 }
 
-/*#[derive(Deserialize, Serialize, Debug, Clone)]
-struct SensorDataPayload {
-    distance: Distance,
-}*/
-
-// Ihre SignedSensorData-Struktur wird dann angepasst:
 #[derive(Deserialize, Serialize, Debug, Clone)]
 struct SignedSensorData {
     #[serde(rename = "tceId")]
@@ -61,16 +50,15 @@ struct SignedSensorData {
     camunda_activity_id: String,
     sensorkey: String,
     #[serde(rename = "signedSensorData")]
-    signed_sensor_data: String, // Behält den ursprünglichen Namen für Klarheit
+    signed_sensor_data: String, 
     #[serde(rename = "sensorData")]
-    //sensor_data: SensorDataPayload, // GEÄNDERT: von String zu SensorDataPayload
+    //sensor_data: SensorDataPayload, 
     sensor_data: String
 }
 
 #[derive(Deserialize, Serialize)]
 struct CombinedInput {
     activities: Vec<Activity>,
-    //shipments: Vec<Shipment>,
     signatures: Vec<SignedSensorData>,
 }
 
@@ -80,12 +68,142 @@ struct ReceiptExport {
     receipt: risc0_zkvm::Receipt,
 }
 
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct GuestMetrics {
+    pub start_cycles: u64,
+    pub end_cycles: u64,
+    pub risc_v_cycles: u64,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HostMetrics {
+    run_id: String,
+    csv_file_path: String,
+    runtime_prove_s: Option<f64>,
+    input_size_bytes: Option<u64>,
+    proof_size_bytes: Option<u64>,
+    guest_cycles: Option<u64>,
+    segments: Option<u64>,
+    total_cycles: Option<u64>,
+    #[cfg(target_os = "linux")]
+    cpu_cycles_host: Option<u64>,
+}
+
+impl HostMetrics {
+    pub fn new(csv_file_path: String, run_id: String) -> Self {
+        Self {
+            run_id,
+            csv_file_path,
+            runtime_prove_s: None,
+            input_size_bytes: None,
+            proof_size_bytes: None,
+            guest_cycles: None,
+            segments: None,
+            total_cycles: None,
+            #[cfg(target_os = "linux")]
+            cpu_cycles_host: None,
+        }
+    }
+
+    pub fn runtime(&mut self, proving_time_seconds: f64) {
+        self.runtime_prove_s = Some(proving_time_seconds);
+    }
+
+    pub fn input_size(&mut self, inputs_size_bytes: u64) {
+        self.input_size_bytes = Some(inputs_size_bytes);
+    }
+
+    pub fn proof_size(&mut self, proof: &[u8]) {
+        self.proof_size_bytes = Some(proof.len() as u64);
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn host_cpu_cycles<F>(&mut self, f: F) -> Result<(), Box<dyn Error>>
+    where
+        F: FnOnce(),
+    {
+        let mut counter = Builder::new().build()?;
+        counter.enable()?;
+        f();
+        counter.disable()?;
+        self.cpu_cycles_host = Some(counter.read()?);
+        Ok(())
+    }
+
+    #[cfg(target_os = "linux")]
+    pub fn host_cpu_cycles<F>(&mut self, f: F) -> Result<(), Box<dyn Error>>
+    where
+        F: FnOnce(),
+    {
+        let mut counter =Builder::new().build()?;
+        counter.enable()?;
+        f();
+        counter.disable()?;
+        self.cpu_cyclus_host = counter.read()?;
+        Ok(())
+    }
+
+    pub fn segments(&mut self, _receipt: &Receipt) { 
+        self.segments = None;
+        // Beispiel, falls InnerReceipt::Composite(composite_seal) existiert und composite_seal.segments eine Vec ist:
+        // if let Ok(inner_receipt) = receipt.inner { // Annahme, dass inner ein Result ist
+        //     match inner_receipt {
+        //         risc0_zkvm::InnerReceipt::Composite(seal) => self.segments = Some(seal.segments.len() as u64),
+        //         _ => self.segments = None,
+        //     }
+        // }
+        eprintln!("INFO: Segment-Extraktion in host_metrics.rs muss für risc0-zkvm API überprüft werden. Currently set to None.");
+    }
+
+    pub fn total_cycles(&mut self, _receipt: &Receipt) {
+        self.total_cycles = None;
+        eprintln!("WARN: host_metrics.total_cycles: Failed to get 'cycles' from 'receipt.metadata'. Field not found. Total cycles set to None.");
+    }
+
+    pub fn metrics_write_csv(&self) -> Result<(), Box<dyn Error>> {
+        let file_exists = std::path::Path::new(&self.csv_file_path).exists();
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(true)
+            .open(&self.csv_file_path)?;
+
+        let mut wtr = Writer::from_writer(file);
+
+        if !file_exists {
+            wtr.write_record(&[
+                "run_id",
+                "proving_time_seconds",
+                "inputs_size_bytes",
+                "proof_size_bytes",
+                "cpu_cycles_host",
+                "guest_cycles",
+                "segments",
+                "total_cycles",
+            ])?;
+        }
+
+        wtr.serialize(self)?;
+        wtr.flush()?;
+        Ok(())
+    }
+
+    pub fn guest_cycles(&mut self, g_metrics: &GuestMetrics) {
+        self.guest_cycles = Some(g_metrics.risc_v_cycles);
+    }
+}
+
+
 fn main() {
-    
+
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .init();
 
+    let run_id = Uuid::new_v4().to_string(); // Corrected: Use imported Uuid
+    let mut host_metrics = HostMetrics::new(format!("{}_host_metrics.csv", run_id), run_id.clone());
+    
     let activity_json =
         fs::read_to_string("host/src/activity.json").expect("File was not readable!!!");
 
@@ -93,10 +211,9 @@ fn main() {
 
     let signatures_json =
         fs::read_to_string("host/src/og.json").expect("Sensor file not readable");
-    // Zuerst in ein Array von OgJsonTopLevel-Objekten deserialisieren
+
     let top_level_data_vec: Vec<OgJsonTopLevel> = from_str(&signatures_json).unwrap();
 
-    // Wenn Sie sicher sind, dass es nur ein Element im äußeren Array von og.json gibt:
     let signatures: Vec<SignedSensorData> = if let Some(top_level_data) = top_level_data_vec.get(0) {
         top_level_data.signed_sensor_data_list.clone()
     } else {
@@ -116,11 +233,17 @@ fn main() {
 
     let prover = default_prover();
 
+    let prove_start_time = Instant::now();
+
     let prove_info = prover.prove(env, GUEST_CODE_FOR_ZK_PROOF_ELF).unwrap();
+
+    let prove_duration = prove_start_time.elapsed(); 
 
     let receipt = prove_info.receipt;
 
     let (pcf_total, guest_metrics_from_journal): (u32, GuestMetrics) = receipt.journal.decode().unwrap();
+
+    println!("Guest Metrics from Journal: {:?}", guest_metrics_from_journal);
 
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
 
@@ -134,26 +257,8 @@ fn main() {
 
     let export = ReceiptExport {
         image_id: image_id_hex,
-        receipt,
+        receipt: receipt.clone(),
     };
-
-    println!("RISC-V Zyklen (aus Guest): {}", guest_metrics_from_journal.risc_v_cycles);
-
-        // Host-Metriken initialisieren und befüllen
-    let mut host_metrics = HostMetrics::new(
-        "pcf_calculation_metrics.csv".to_string(), // Name der CSV-Datei
-        "run_001".to_string()                      // Eindeutige ID für diesen Lauf
-    );
-
-    host_metrics.runtime(prove_duration.as_secs_f64());
-    host_metrics.input_size(input_size_bytes);
-    host_metrics.guest_cycles(&guest_metrics_from_journal);
-
-    // Metriken in CSV schreiben
-    match host_metrics.metrics_write_csv() {
-        Ok(_) => println!("Metriken erfolgreich in pcf_calculation_metrics.csv geschrieben."),
-        Err(e) => eprintln!("Fehler beim Schreiben der Metriken: {}", e),
-    }
 
     let receipt_json = to_string_pretty(&export).expect("JSON serialization failed");
 
@@ -164,4 +269,29 @@ fn main() {
     if let Err(e) = verify::verify_receipt() {
         eprintln!("❌ Fehler bei der Verifikation: {:?}", e);
     }
+
+    host_metrics.runtime(prove_duration.as_secs_f64()); 
+
+    let serialized_input = postcard::to_allocvec(&combined_input).expect("Failed to serialize combined input");
+    let input_size_bytes = serialized_input.len() as u64;
+    host_metrics.input_size(input_size_bytes);  
+
+    let serialized_receipt = match postcard::to_allocvec(&receipt) {
+        Ok(val) => val,
+        Err(e) => {
+            eprintln!("Failed to serialize receipt: {}", e);
+            return;
+        }
+    };
+    host_metrics.proof_size(&serialized_receipt);
+
+    host_metrics.guest_cycles(&guest_metrics_from_journal);
+    host_metrics.segments(&receipt); 
+    host_metrics.total_cycles(&receipt);
+
+    if let Err(e) = host_metrics.metrics_write_csv() {
+        eprintln!("Fehler beim Schreiben der CSV-Datei: {}", e);
+    }
+
+    println!("Proof erfolgreich generiert und verifiziert!");
 }

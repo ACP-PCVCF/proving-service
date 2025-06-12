@@ -1,0 +1,3 @@
+run_id,proving_time_seconds,inputs_size_bytes,proof_size_bytes,cpu_cycles_host,guest_cycles,segments,total_cycles
+run_id,csv_file_path,runtime_prove_s,input_size_bytes,proof_size_bytes,guest_cycles,segments,total_cycles
+37078de9-81cf-4f28-bc63-e5efea635935,37078de9-81cf-4f28-bc63-e5efea635935_host_metrics.csv,0.278361375,982,136,9954556,,

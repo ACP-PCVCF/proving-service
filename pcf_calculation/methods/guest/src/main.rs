@@ -19,30 +19,40 @@ use digest::{
     FixedOutput,
     Update
 };
-use metrics::metrics::guest_metrics::GuestMetrics;
 
 risc0_zkvm::guest::entry!(main);
+ 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct GuestMetrics {
+    pub start_cycles: u64,
+    pub end_cycles: u64,
+    pub risc_v_cycles: u64,
+}
 
-/*#[derive(Deserialize, Serialize)]
-struct ShipmentInfo {
-    #[serde(rename = "sensorData")]
-    sensor_data: String,
-    #[serde(rename = "signedSensorData")]
-    signed_sensor_data: String,
-    sensorkey: String,
+impl GuestMetrics {
+    pub fn new() -> Self {
+        Self {
+            start_cycles: 0,
+            end_cycles: 0,
+            risc_v_cycles: 0,
+        }
+    }
+
+    pub fn start_riscv_cyc_count(&mut self) {
+        self.start_cycles = env::cycle_count(); 
+    }
+
+    pub fn end_riscv_cyc_count(&mut self) {
+        self.end_cycles = env::cycle_count(); 
+        self.risc_v_cycles = self.end_cycles.saturating_sub(self.start_cycles);
+    }
 }
 
 #[derive(Deserialize, Serialize)]
-struct Shipment {
-    //shipment_id: String,
-    info: ShipmentInfo,
-}*/
-
-#[derive(Deserialize, Serialize)]
 struct Distance {
-    actual: f64, // oder f32, je nach Genauigkeit. JSON 'number' wird oft zu f64.
-    gcd: Option<f64>, // Da es 'null' sein kann
-    sfd: Option<f64>, // Da es 'null' sein kann
+    actual: f64,
+    gcd: Option<f64>, 
+    sfd: Option<f64>, 
 }
 
 #[derive(Deserialize, Serialize)]
@@ -77,15 +87,10 @@ struct Activity {
     e_type: String,
 }
 
-/*#[derive(Deserialize, Serialize)]
-struct CombinedInput {
-    activities: Vec<Activity>,
-    shipments: Vec<Shipment>,
-}*/
+
 #[derive(Deserialize, Serialize)]
 struct CombinedInput {
     activities: Vec<Activity>,
-    //shipments: Vec<Shipment>,
     signatures: Vec<SignedSensorData>,
 }
 
@@ -174,16 +179,15 @@ impl DigestTrait for Sha256WithOid {
     }
 }
 
-//fn verify_signature(info: &ShipmentInfo) -> bool {
 fn verify_signature(info: &SignedSensorData) -> bool {
-    /*let payload_string = match serde_json::to_string(&info.sensor_data) {
-        Ok(s) => s,
-        Err(e) => {
-            env::log(format!("Fehler beim Serialisieren von sensor_data_payload zu String: {:?}", e).as_str());
-            return false;
-        }
-    };
-    let payload = payload_string.as_bytes();*/
+    //let payload_string = match serde_json::to_string(&info.sensor_data) {
+    //    Ok(s) => s,
+    //    Err(e) => {
+    //        env::log(format!("Fehler beim Serialisieren von sensor_data_payload zu String: {:?}", e).as_str());
+    //        return false;
+    //    }
+    //};
+    //let payload = payload_string.as_bytes();
 
     let payload = &info.sensor_data;
     let signature_b64 = &info.signed_sensor_data;
@@ -279,11 +283,28 @@ fn main() {
     let pcf_total: u32 = emission_diesel + emission_gasoline + emission_greenpower;
 
     env::log(format!("PCF total (kg CO2e): {}", pcf_total).as_str());
-    //env::commit(&pcf_total);
 
-        // Ende der Zykluszählung
     guest_metrics.end_riscv_cyc_count();
 
-    // Ergebnis und Metriken an den Host committen
     env::commit(&(&pcf_total, guest_metrics));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use risc0_zkvm::guest::env;
+
+    #[test]
+    fn test_guest_metrics_cycle_count() {
+        let mut gm = GuestMetrics::new();
+
+        // Simulate start
+        gm.start_riscv_cyc_count();
+        // Simulated work: no-op
+        gm.end_riscv_cyc_count();
+
+        // Check that end > start and cycles computed
+        assert!(gm.end_cycles >= gm.start_cycles);
+        assert_eq!(gm.risc_v_cycles, gm.end_cycles - gm.start_cycles);
+    }
 }

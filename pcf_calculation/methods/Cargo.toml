@@ -3,8 +3,15 @@ name = "methods"
 version = "0.1.0"
 edition = "2021"
 
+#[lib]
+#name = "methods"
+#path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+risc0-zkvm = { version = "^2.0.2" } 
+
 [build-dependencies]
-#risc0-build = { version = "^2.1.1" }
 risc0-build = { version = "^2.0.2" }
 
 [package.metadata.risc0]
