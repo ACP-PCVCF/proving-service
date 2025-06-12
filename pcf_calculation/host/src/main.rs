@@ -1,5 +1,5 @@
 use methods::{GUEST_CODE_FOR_ZK_PROOF_ELF, GUEST_CODE_FOR_ZK_PROOF_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv, Digest, Receipt}; 
+use risc0_zkvm::{default_prover, ExecutorEnv, Digest, Receipt, InnerReceipt};
 use serde::{Deserialize, Serialize};
 use serde_json::{to_string_pretty, from_str};
 use std::error::Error;
@@ -76,59 +76,48 @@ pub struct GuestMetrics {
     pub risc_v_cycles: u64,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize)]
 pub struct HostMetrics {
-    run_id: String,
-    csv_file_path: String,
-    runtime_prove_s: Option<f64>,
-    input_size_bytes: Option<u64>,
-    proof_size_bytes: Option<u64>,
-    guest_cycles: Option<u64>,
-    segments: Option<u64>,
-    total_cycles: Option<u64>,
-    #[cfg(target_os = "linux")]
-    cpu_cycles_host: Option<u64>,
+    proving_time: u64, // in milliseconds
+    inputs_size: u64,
+    proof_size: u64,
+    #[cfg(target_os = "linux")] // Conditionally compile the field itself
+    cpu_cyclus_host: u64,
+    #[cfg(not(target_os = "linux"))] 
+    cpu_cyclus_host: Option<u64>, 
+    guest_cycles: u64,
+    prove_depth: u64,
+    overhead_1: f64,
+    efficiency: f64,
 }
 
 impl HostMetrics {
-    pub fn new(csv_file_path: String, run_id: String) -> Self {
+    pub fn new() -> Self {
         Self {
-            run_id,
-            csv_file_path,
-            runtime_prove_s: None,
-            input_size_bytes: None,
-            proof_size_bytes: None,
-            guest_cycles: None,
-            segments: None,
-            total_cycles: None,
+            proving_time: 0,
+            inputs_size: 0,
+            proof_size: 0,
             #[cfg(target_os = "linux")]
-            cpu_cycles_host: None,
+            cpu_cyclus_host: 0,
+            #[cfg(not(target_os = "linux"))]
+            cpu_cyclus_host: None, // Initialize Option to None
+            guest_cycles: 0,
+            prove_depth: 0,
+            overhead_1: 0.0,
+            efficiency: 0.0,
         }
     }
 
-    pub fn runtime(&mut self, proving_time_seconds: f64) {
-        self.runtime_prove_s = Some(proving_time_seconds);
+    pub fn set_proving_time_ms(&mut self, duration_ms: u64) {
+        self.proving_time = duration_ms;
     }
 
-    pub fn input_size(&mut self, inputs_size_bytes: u64) {
-        self.input_size_bytes = Some(inputs_size_bytes);
+    pub fn proof_size(&mut self, receipt: &Receipt) {
+        self.proof_size = bincode::serialized_size(receipt).unwrap_or(0) as u64;
     }
 
-    pub fn proof_size(&mut self, proof: &[u8]) {
-        self.proof_size_bytes = Some(proof.len() as u64);
-    }
-
-    #[cfg(target_os = "linux")]
-    pub fn host_cpu_cycles<F>(&mut self, f: F) -> Result<(), Box<dyn Error>>
-    where
-        F: FnOnce(),
-    {
-        let mut counter = Builder::new().build()?;
-        counter.enable()?;
-        f();
-        counter.disable()?;
-        self.cpu_cycles_host = Some(counter.read()?);
-        Ok(())
+    pub fn input_size<T: Serialize>(&mut self, input: &T) { // Corrected: pass the actual input
+        self.inputs_size = bincode::serialized_size(input).unwrap_or(0) as u64;
     }
 
     #[cfg(target_os = "linux")]
@@ -136,7 +125,9 @@ impl HostMetrics {
     where
         F: FnOnce(),
     {
-        let mut counter =Builder::new().build()?;
+        // Ensure perf_event::Builder is in scope
+        use perf_event::Builder;
+        let mut counter = Builder::new().build_hardware(perf_event::events::Hardware::CPU_CYCLES)?;
         counter.enable()?;
         f();
         counter.disable()?;
@@ -144,56 +135,60 @@ impl HostMetrics {
         Ok(())
     }
 
-    pub fn segments(&mut self, _receipt: &Receipt) { 
-        self.segments = None;
-        // Beispiel, falls InnerReceipt::Composite(composite_seal) existiert und composite_seal.segments eine Vec ist:
-        // if let Ok(inner_receipt) = receipt.inner { // Annahme, dass inner ein Result ist
-        //     match inner_receipt {
-        //         risc0_zkvm::InnerReceipt::Composite(seal) => self.segments = Some(seal.segments.len() as u64),
-        //         _ => self.segments = None,
-        //     }
-        // }
-        eprintln!("INFO: Segment-Extraktion in host_metrics.rs muss für risc0-zkvm API überprüft werden. Currently set to None.");
-    }
-
-    pub fn total_cycles(&mut self, _receipt: &Receipt) {
-        self.total_cycles = None;
-        eprintln!("WARN: host_metrics.total_cycles: Failed to get 'cycles' from 'receipt.metadata'. Field not found. Total cycles set to None.");
+    // Method to set prove_depth (segment count)
+    pub fn set_prove_depth(&mut self, receipt: &Receipt) {
+        match &receipt.inner {
+            InnerReceipt::Composite(composite_seal) => {
+                self.prove_depth = composite_seal.segments.len() as u64;
+            }
+            InnerReceipt::Groth16(_) => {
+                self.prove_depth = 1; // Typically 1 segment for a non-composite Groth16 proof
+            }
+            // InnerReceipt::Succinct(_) => {
+            //     self.prove_depth = 1;
+            // }
+            _ => {
+                eprintln!("WARN: Unhandled InnerReceipt variant for prove_depth extraction. Prove depth set to 1.");
+                self.prove_depth = 1 // Or 1, depending on desired default
+            }
+        }
     }
 
     pub fn metrics_write_csv(&self) -> Result<(), Box<dyn Error>> {
-        let file_exists = std::path::Path::new(&self.csv_file_path).exists();
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .append(true)
-            .open(&self.csv_file_path)?;
-
-        let mut wtr = Writer::from_writer(file);
-
-        if !file_exists {
-            wtr.write_record(&[
-                "run_id",
-                "proving_time_seconds",
-                "inputs_size_bytes",
-                "proof_size_bytes",
-                "cpu_cycles_host",
-                "guest_cycles",
-                "segments",
-                "total_cycles",
-            ])?;
-        }
-
+        let mut wtr = Writer::from_writer(vec![]);
         wtr.serialize(self)?;
-        wtr.flush()?;
+        let data = String::from_utf8(wtr.into_inner()?)?;
+        println!("{}", data);
         Ok(())
     }
 
+    pub fn efficiency(&mut self, g_metrics: &GuestMetrics) {
+        #[cfg(target_os = "linux")]
+        if g_metrics.risc_v_cycles > 0 {
+            self.efficiency = self.cpu_cyclus_host as f64 / g_metrics.risc_v_cycles as f64;
+        } else {
+            self.efficiency = 0.0;
+        }
+        #[cfg(not(target_os = "linux"))]
+        if g_metrics.risc_v_cycles > 0 && self.cpu_cyclus_host.is_some() {
+             self.efficiency = 0.0;
+        } else {
+            self.efficiency = 0.0;
+        }
+    }
+
+    pub fn overhead_1(&mut self) {
+        if self.prove_depth > 0 {
+            self.overhead_1 = self.proving_time as f64 / self.prove_depth as f64;
+        } else {
+            self.overhead_1 = 0.0;
+        }
+    }
+
     pub fn guest_cycles(&mut self, g_metrics: &GuestMetrics) {
-        self.guest_cycles = Some(g_metrics.risc_v_cycles);
+        self.guest_cycles = g_metrics.risc_v_cycles;
     }
 }
-
 
 fn main() {
 
@@ -202,7 +197,8 @@ fn main() {
         .init();
 
     let run_id = Uuid::new_v4().to_string(); // Corrected: Use imported Uuid
-    let mut host_metrics = HostMetrics::new(format!("{}_host_metrics.csv", run_id), run_id.clone());
+    //let mut host_metrics = HostMetrics::new(format!("{}_host_metrics.csv", run_id), run_id.clone());
+    let mut host_metrics = HostMetrics::new();
     
     let activity_json =
         fs::read_to_string("host/src/activity.json").expect("File was not readable!!!");
@@ -234,17 +230,13 @@ fn main() {
     let prover = default_prover();
 
     let prove_start_time = Instant::now();
-
     let prove_info = prover.prove(env, GUEST_CODE_FOR_ZK_PROOF_ELF).unwrap();
-
-    let prove_duration = prove_start_time.elapsed(); 
+    let prove_duration = prove_start_time.elapsed();
 
     let receipt = prove_info.receipt;
-
     let (pcf_total, guest_metrics_from_journal): (u32, GuestMetrics) = receipt.journal.decode().unwrap();
 
     println!("Guest Metrics from Journal: {:?}", guest_metrics_from_journal);
-
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
 
     print!(
@@ -270,24 +262,23 @@ fn main() {
         eprintln!("❌ Fehler bei der Verifikation: {:?}", e);
     }
 
-    host_metrics.runtime(prove_duration.as_secs_f64()); 
-
-    let serialized_input = postcard::to_allocvec(&combined_input).expect("Failed to serialize combined input");
-    let input_size_bytes = serialized_input.len() as u64;
-    host_metrics.input_size(input_size_bytes);  
-
-    let serialized_receipt = match postcard::to_allocvec(&receipt) {
-        Ok(val) => val,
-        Err(e) => {
-            eprintln!("Failed to serialize receipt: {}", e);
-            return;
-        }
-    };
-    host_metrics.proof_size(&serialized_receipt);
+    host_metrics.set_proving_time_ms((prove_duration.as_secs_f64() * 1000.0) as u64);
+    host_metrics.input_size(&combined_input); // Pass the actual input object
+    host_metrics.proof_size(&receipt); // Pass the receipt object
 
     host_metrics.guest_cycles(&guest_metrics_from_journal);
-    host_metrics.segments(&receipt); 
-    host_metrics.total_cycles(&receipt);
+
+    #[cfg(target_os = "linux")]
+    {
+
+        if let Err(e) = host_metrics.host_cpu_cycles(|| { }) {
+            eprintln!("Failed to get host CPU cycles: {}", e);
+        }
+    }
+
+    host_metrics.set_prove_depth(&receipt); // Calculate and set prove_depth
+    host_metrics.overhead_1(); // Call with no arguments
+    host_metrics.efficiency(&guest_metrics_from_journal); // Call with GuestMetrics
 
     if let Err(e) = host_metrics.metrics_write_csv() {
         eprintln!("Fehler beim Schreiben der CSV-Datei: {}", e);
