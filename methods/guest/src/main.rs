@@ -181,10 +181,24 @@ fn main() {
     // Lese die komplexen product footprint daten
     //let start = env::cycle_count();
     let product_footprint: ProofingDocument = env::read();
+    let serialized_image_id_opt_bytes: Vec<u8> = env::read();
+    let image_id_opt: Option<Digest> = bincode::deserialize(&serialized_image_id_opt_bytes)
+        .expect("Failed to deserialize image_id_opt on guest");
+
+    let serialized_journal_opt_bytes: Vec<u8> = env::read();
+    let journal_opt: Option<Journal> = bincode::deserialize(&serialized_journal_opt_bytes)
+        .expect("Failed to deserialize journal_opt on guest");
     let mut transport_pcf: f64 = 0.0;
 
     let ileap_extension: &Extension = &product_footprint.productFootprint.extensions[0];
 
+    image_id_opt.and_then(|image_id| {
+        journal_opt.map(|journal| {
+            env::verify(image_id, journal.bytes.as_slice()).unwrap();
+            env::log(&format!("Guest: Image ID verified successfully: {}", image_id));
+        })
+    });
+/* 
     if let Some(proof_extension) = &product_footprint.proof {
         let receipt_bytes: Vec<u8> = general_purpose::STANDARD
             .decode(&proof_extension.data.pcfProofs[0].proofReceipt)
@@ -227,7 +241,7 @@ fn main() {
                 panic!("Innerer Proof konnte nicht verifiziert werden!");
             }
         }
-    }
+    } */
 
     let tces: &Vec<TCE> = &ileap_extension.data.tces;
     let ssd: &Vec<TceSensorData> = &product_footprint.signedSensorData
