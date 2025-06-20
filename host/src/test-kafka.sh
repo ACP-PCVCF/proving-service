@@ -3,15 +3,20 @@
 INPUT_TOPIC="shipments"
 KAFKA_CONTAINER="host-kafka-1"
 BROKER="localhost:9092"
-JSON_FILE="shipment_3.json"
+#JSON_FILE="shipment_1.json"
 
-# Prüfen, ob die JSON-Datei existiert
-if [ ! -f "$JSON_FILE" ]; then
-  echo "Fehler: Die Datei '$JSON_FILE' wurde nicht gefunden."
+if [ -z "$1" ]; then
+  echo "Fehler: Kein String als Argument übergeben."
   exit 1
 fi
 
-JSON_CONTENT=$(cat "$JSON_FILE" | tr -d '\n\r')
+# Prüfen, ob die JSON-Datei existiert
+if [ ! -f "$1" ]; then
+  echo "Fehler: Die Datei '$1' wurde nicht gefunden."
+  exit 1
+fi
+
+JSON_CONTENT=$(cat "$1" | tr -d '\n\r')
 
 echo "Sende Test-Nachricht an Topic $INPUT_TOPIC ..."
 printf '%s\n' "$JSON_CONTENT" | \

@@ -9,7 +9,6 @@ risc0-zkvm = { version = "^2.0.0", default-features = false, features = [
 ] }
 proving_service_core = { path = "../../core" }
 
-
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 rsa = "0.9"
 rand = "0.8"
@@ -18,3 +17,5 @@ base64 = "0.21"
 pem = "1.0"
 pkcs1 = "0.7"
 serde_json = "1.0"
+
+bincode = "1.3"
