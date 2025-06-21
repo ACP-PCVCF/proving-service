@@ -1,0 +1,157 @@
+[
+{
+    "productFootprint": {
+        "id": "ca81f7c6-ff88-440c-8bfa-785d3cad2f54",
+        "specVersion": "2.0.0",
+        "version": 0,
+        "created": "2025-06-07T12:52:12.709293",
+        "status": "Active",
+        "companyName": "Amazing Company 1",
+        "companyIds": [
+            "urn:epcidsgln:f8f435a0-9bd2-4c73-bb79-86d3ff8f32ef"
+        ],
+        "productDescription": "Logistics emissions related to shipment with ID SHIP_e1708f48-71b9-4af4-95c1-ef54dc9bde36",
+        "productIds": [
+            "urn:pathfinder:product:customcode:vendor-assigned:25ed40cb-ee4b-4e68-92dd-94aa765d6d18"
+        ],
+        "productCategoryCpc": 4844,
+        "productNameCompany": "Shipment with ID SHIP_e1708f48-71b9-4af4-95c1-ef54dc9bde36",
+        "pcf": null,
+        "comment": "",
+        "extensions": [
+            {
+                "specVersion": "2.0.0",
+                "dataSchema": "https://api.ileap.sine.dev/shipment-footprint.json",
+                "data": {
+                    "mass": 11772.615974349148,
+                    "shipmentId": "SHIP_e1708f48-71b9-4af4-95c1-ef54dc9bde36",
+                    "tces": [
+                        {
+                            "tceId": "3e5efa67-1448-4732-ad18-b3f9170a25db",
+                            "prevTceIds": [],
+                            "hocId": "100",
+                            "tocId": null,
+                            "shipmentId": "SHIP_e1708f48-71b9-4af4-95c1-ef54dc9bde36",
+                            "mass": 11772.615974349148,
+                            "co2eWTW": null,
+                            "co2eTTW": null,
+                            "transportActivity": null,
+                            "distance": null
+                        },
+                        {
+                            "tceId": "dcfdf919-6969-4f68-95e4-670bb6a76d4e",
+                            "prevTceIds": [
+                                "3e5efa67-1448-4732-ad18-b3f9170a25db"
+                            ],
+                            "hocId": null,
+                            "tocId": "200",
+                            "shipmentId": "SHIP_e1708f48-71b9-4af4-95c1-ef54dc9bde36",
+                            "mass": 11772.615974349148,
+                            "co2eWTW": null,
+                            "co2eTTW": null,
+                            "transportActivity": null,
+                            "distance": {
+                                "actual": 284.22,
+                                "gcd": null,
+                                "sfd": null
+                            }
+                        },
+                        {
+                            "tceId": "fd091ea0-aa8f-4b9f-b498-1c5b7b89f3ae",
+                            "prevTceIds": [
+                                "3e5efa67-1448-4732-ad18-b3f9170a25db",
+                                "dcfdf919-6969-4f68-95e4-670bb6a76d4e"
+                            ],
+                            "hocId": "101",
+                            "tocId": null,
+                            "shipmentId": "SHIP_e1708f48-71b9-4af4-95c1-ef54dc9bde36",
+                            "mass": 11772.615974349148,
+                            "co2eWTW": null,
+                            "co2eTTW": null,
+                            "transportActivity": null,
+                            "distance": null
+                        }
+                    ]
+                }
+            }
+        ]
+    },
+    "tocData": [
+        {
+            "tocId": "200",
+            "certifications": [
+                "ISO14083:2023",
+                "GLECv3"
+            ],
+            "description": "Standard Diesel Truck - Long Haul",
+            "mode": "road",
+            "loadFactor": "0.80",
+            "emptyDistanceFactor": "0.10",
+            "temperatureControl": "Ambient",
+            "truckLoadingSequence": "LIFO",
+            "airShippingOption": null,
+            "flightLength": null,
+            "energyCarriers": [
+                {
+                    "energyCarrier": "Diesel",
+                    "relativeShare": "1.0",
+                    "emissionFactorWTW": "85 gCO2e/tkm",
+                    "emissionFactorTTW": "75 gCO2e/tkm"
+                }
+            ],
+            "co2eIntensityWTW": "85 gCO2e/tkm",
+            "co2eIntensityTTW": "75 gCO2e/tkm",
+            "transportActivityUnit": "tkm"
+        }
+    ],
+    "hocData": [
+        {
+            "hocId": "100",
+            "passhubType": "Charging Hub",
+            "energyCarriers": [
+                {
+                    "energyCarrier": "Electricity",
+                    "relativeShare": "1.0",
+                    "emissionFactorWTW": "25 gCO2e/MJ",
+                    "emissionFactorTTW": "0 gCO2e/MJ"
+                }
+            ],
+            "co2eIntensityWTW": "25 gCO2e/MJ",
+            "co2eIntensityTTW": "0 gCO2e/MJ",
+            "hubActivityUnit": "kWh delivered"
+        },
+        {
+            "hocId": "101",
+            "passhubType": "Refuelling Hub",
+            "energyCarriers": [
+                {
+                    "energyCarrier": "Hydrogen",
+                    "relativeShare": "0.8",
+                    "emissionFactorWTW": "70 gCO2e/MJ",
+                    "emissionFactorTTW": "0 gCO2e/MJ"
+                },
+                {
+                    "energyCarrier": "Diesel",
+                    "relativeShare": "0.2",
+                    "emissionFactorWTW": "95 gCO2e/MJ",
+                    "emissionFactorTTW": "73 gCO2e/MJ"
+                }
+            ],
+            "co2eIntensityWTW": "70 gCO2e/MJ",
+            "co2eIntensityTTW": "0 gCO2e/MJ",
+            "hubActivityUnit": "kg dispensed"
+        }
+    ],
+    "signedSensorData": [
+        {
+            "tceId": "tce_abc_789",
+            "camundaProcessInstanceKey": "camunda_key_456",
+            "camundaActivityId": "activity_xyz_123",
+            "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkCPkUUaiuj9UBwVoQBMf\nG+3M3Z1pPsCFgZ9J8/TJtz1H7mGaY3UPdRaS2wiz0EM/PXdNs9aIwZcdlAXrdcm+\nSWlJcN40i/7hb+Qx1eIZVxWhBJs7AEmpi45h/e5C3SGrxpyi86qWeOAidunsAt+U\nOM7NJwvJmgWm1RZ6B8NNddC/ajEyTcS+xrcnCZ1dmHzK9xme9aWu3TwqxnPXUF3P\nYxigt44e4IxNVgm4Ai91Jglx3du2pARrBIRMc2XG/4jVHx/9cx19zgtoSdZPd8nf\n7VpJwStjzsE2Ff9Mkpsfc8gCG0IZY2XEu5tX28Hl6CkCCRYQSy/ahbnAsZwJF4HT\nCQIDAQAB\n-----END PUBLIC KEY-----\n",
+            "signedSensorData": "ZtBIQIbyQrvMKZRmcjf3ZoMpgej8QaffM9zUTzUOKFaySuFDotxDtoJPZQ+T76t9QJAd/kmPQl1zY4SUwHxzoG2+i20VwOXfts1uPI9GVneF/7iEIZAshgkwTjnTNPF8dnoI1Ppw7ZRQWgIp16Oy7EDdYfdB6TdmqvkS/RWx95aT84zr1UZRBKL6At4uiKWFurlp1ba23it4jwmDo24aK6sYbXjDUEtmj1bjyPtejud2yp5LJ6ZaXW8k+kOAeCOmvpqF2LlS+bvwYlh0d6GZR7u/uj98XyJ5wlZ6Xfvo3pajfIAga5HjteLnCfvWfiePLfFdKHQZQof08YCab5VEJA==",
+            "sensorData":"{\"distance\":{\"actual\":91.71,\"gcd\":null,\"sfd\":null}}",
+            "sensorDataHash":"y3z2MGaDrDB9Ix0bGIqJBSTniOzpiNAThsXxd9zG5lA="
+        }
+    ]
+}
+]

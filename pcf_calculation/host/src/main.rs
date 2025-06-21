@@ -6,6 +6,22 @@ use std::error::Error;
 use std::fs;
 use std::time::Instant; 
 use uuid::Uuid; 
+use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
+use rsa::pkcs1v15::Pkcs1v15Sign;
+use sha2::{Sha256, Digest as Sha2DigestTrait};
+use base64::{engine::general_purpose, Engine as _};
+use const_oid::AssociatedOid;
+use pkcs1::ObjectIdentifier;
+use digest::{
+    self,
+    Digest as DigestTrait,
+    OutputSizeUser,
+    Reset,
+    FixedOutputReset,
+    generic_array::GenericArray,
+    FixedOutput,
+    Update
+};
 
 use csv::Writer;
 #[cfg(target_os = "linux")]
@@ -53,7 +69,9 @@ struct SignedSensorData {
     signed_sensor_data: String, 
     #[serde(rename = "sensorData")]
     //sensor_data: SensorDataPayload, 
-    sensor_data: String
+    sensor_data: String,
+    #[serde(rename = "sensorDataHash")]
+    sensor_data_hash: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -190,6 +208,165 @@ impl HostMetrics {
     }
 }
 
+
+#[derive(Default, Clone)]
+struct Sha256WithOid(Sha256);
+
+impl AssociatedOid for Sha256WithOid {
+    const OID: ObjectIdentifier = ObjectIdentifier::new_unwrap("2.16.840.1.101.3.4.2.1");
+}
+
+impl OutputSizeUser for Sha256WithOid {
+    type OutputSize = <Sha256 as OutputSizeUser>::OutputSize;
+}
+
+impl Update for Sha256WithOid {
+    fn update(&mut self, data: &[u8]) {
+        Update::update(&mut self.0, data);
+    }
+}
+
+impl FixedOutput for Sha256WithOid {
+    fn finalize_into(self, out: &mut GenericArray<u8, Self::OutputSize>) {
+        FixedOutput::finalize_into(self.0, out);
+    }
+}
+
+impl Reset for Sha256WithOid {
+    fn reset(&mut self) {
+        Reset::reset(&mut self.0);
+    }
+}
+
+impl FixedOutputReset for Sha256WithOid {
+     fn finalize_fixed_reset(&mut self) -> GenericArray<u8, Self::OutputSize> {
+        FixedOutputReset::finalize_fixed_reset(&mut self.0)
+     }
+     fn finalize_into_reset(&mut self, out: &mut GenericArray<u8, Self::OutputSize>) {
+        FixedOutputReset::finalize_into_reset(&mut self.0, out);
+     }
+}
+
+impl DigestTrait for Sha256WithOid {
+    fn new() -> Self {
+        Sha256WithOid(Sha256::new())
+    }
+
+    fn update(&mut self, data: impl AsRef<[u8]>) {
+        Update::update(self, data.as_ref());
+    }
+
+    fn finalize(self) -> GenericArray<u8, Self::OutputSize> {
+        DigestTrait::finalize(self.0)
+    }
+
+    fn new_with_prefix(data: impl AsRef<[u8]>) -> Self {
+        Sha256WithOid(Sha256::new_with_prefix(data))
+    }
+
+    fn chain_update(self, data: impl AsRef<[u8]>) -> Self {
+         Sha256WithOid(self.0.chain_update(data))
+    }
+
+    fn finalize_into(self, out: &mut GenericArray<u8, Self::OutputSize>) {
+        DigestTrait::finalize_into(self.0, out);
+    }
+
+    fn finalize_reset(&mut self) -> GenericArray<u8, Self::OutputSize> {
+        DigestTrait::finalize_reset(&mut self.0)
+    }
+
+    fn finalize_into_reset(&mut self, out: &mut GenericArray<u8, Self::OutputSize>) {
+        DigestTrait::finalize_into_reset(&mut self.0, out);
+    }
+
+    fn reset(&mut self) {
+        Reset::reset(&mut self.0);
+    }
+
+    fn output_size() -> usize {
+        <Sha256 as DigestTrait>::output_size()
+    }
+
+    fn digest(data: impl AsRef<[u8]>) -> GenericArray<u8, Self::OutputSize> {
+        <Sha256 as DigestTrait>::digest(data)
+    }
+}
+
+
+fn verify_signature(info: &SignedSensorData) -> bool {
+    //let payload_string = match serde_json::to_string(&info.sensor_data) {
+    //    Ok(s) => s,
+    //    Err(e) => {
+    //        env::log(format!("Fehler beim Serialisieren von sensor_data_payload zu String: {:?}", e).as_str());
+    //        return false;
+    //    }
+    //};
+    //let payload = payload_string.as_bytes();
+
+    //let payload = &info.sensor_data;
+    let payload = &info.sensor_data_hash;
+    let signature_b64 = &info.signed_sensor_data;
+    let public_key_pem = &info.sensorkey;
+    //env::log(format!("Payload (Bytes): {:?}", payload).as_str());
+    //env::log(format!("Payload: {}", payload).as_str());
+    println!("Payload: {}", payload);
+    //env::log(format!("Signature: {}", signature_b64).as_str());
+    println!("Signature: {}", signature_b64);
+    //env::log(format!("Public Key PEM: {}", public_key_pem).as_str());
+    println!("Public Key PEM: {}", public_key_pem);
+
+
+    let public_key = match RsaPublicKey::from_public_key_pem(public_key_pem) {
+        Ok(pk) => pk,
+        Err(e) => {
+            //env::log(format!("Fehler beim Laden des Public Keys (SPKI erwartet): {:?}", e).as_str());
+            eprintln!("Fehler beim Laden des Public Keys (SPKI erwartet): {:?}", e);
+            match RsaPublicKey::from_pkcs1_pem(public_key_pem) {
+                Ok(pk_fallback) => {
+                    //env::log("Warnung: Public Key wurde als PKCS#1 geladen, SPKI wird bevorzugt.");
+                    eprintln!("Warnung: Public Key wurde als PKCS#1 geladen, SPKI wird bevorzugt.");
+                    pk_fallback
+                },
+                Err(e_fallback) => {
+                    //env::log(format!("Fehler beim Laden des Public Keys auch als PKCS#1: {:?}", e_fallback).as_str());
+                    eprintln!("Fehler beim Laden des Public Keys auch als PKCS#1: {:?}", e_fallback);
+                    return false;
+                }
+            }
+        }
+    };
+
+    let mut hasher = Sha256::new();
+    Update::update(&mut hasher, payload.as_bytes());
+    //Update::update(&mut hasher, payload);
+    let digest_val = hasher.finalize();
+
+    let signature = match general_purpose::STANDARD.decode(signature_b64) {
+        Ok(sig) => sig,
+        Err(e) => {
+            //env::log(format!("Fehler beim Dekodieren der Signatur: {:?}", e).as_str());
+            eprintln!("Fehler beim Dekodieren der Signatur: {:?}", e);
+            return false;
+        }
+    };
+
+    let padding = Pkcs1v15Sign::new::<Sha256WithOid>();
+    match public_key.verify(padding, &digest_val, &signature) {
+        Ok(_) => {
+            //env::log("Signatur ist gültig.");
+            println!("Signatur ist gültig.");
+            true
+        }
+        Err(e) => {
+            //env::log(format!("Verifikation fehlgeschlagen: {:?}", e).as_str());
+            eprintln!("Verifikation fehlgeschlagen: {:?}", e);
+            false
+        }
+    }
+}
+
+
 fn main() {
 
     tracing_subscriber::fmt()
@@ -206,7 +383,7 @@ fn main() {
     let activities: Vec<Activity> = from_str(&activity_json).unwrap();
 
     let signatures_json =
-        fs::read_to_string("host/src/og.json").expect("Sensor file not readable");
+        fs::read_to_string("host/src/og2.json").expect("Sensor file not readable");
 
     let top_level_data_vec: Vec<OgJsonTopLevel> = from_str(&signatures_json).unwrap();
 
@@ -220,6 +397,19 @@ fn main() {
         activities,
         signatures,
     };
+
+    //for signature in input.signatures {
+    for signature in &combined_input.signatures {
+        if verify_signature(&signature) {
+            //env::log(format!("Shipment {}: GÜLTIG", shipment.shipment_id).as_str());
+            //env::log(format!("Erfolgreich Signatur verifiziert").as_str());
+            println!("Erfolgreich Signatur verifiziert");
+        } else {
+            //env::log(format!("Shipment {}: UNGÜLTIG", shipment.shipment_id).as_str());
+            //env::log(format!("Signatur: UNGÜLTIG").as_str());
+            eprintln!("Signatur: UNGÜLTIG");
+        }
+    }
 
     let env = ExecutorEnv::builder()
         .write(&combined_input)
