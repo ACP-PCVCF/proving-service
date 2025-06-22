@@ -1,8 +1,8 @@
 extern crate alloc;
 use bincode;
 use alloc::{ vec::Vec, string::String, format };
+use proving_service_core::proof_container::ProofContainer;
 use risc0_zkvm::guest::env;
-use risc0_zkvm::Receipt;
 use risc0_zkvm::Journal;
 use risc0_zkvm::sha::Digest;
 use rsa::{ RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey };
@@ -10,7 +10,6 @@ use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::{ Sha256, Digest as Sha2DigestTrait };
 use base64::{ engine::general_purpose, Engine as _ };
 use std::{ * };
-use serde_json;
 use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
@@ -177,71 +176,45 @@ impl DigestTrait for Sha256WithOid {
     }
 }
 
-fn main() {
-    // Lese die komplexen product footprint daten
-    //let start = env::cycle_count();
-    let product_footprint: ProofingDocument = env::read();
-    let serialized_image_id_opt_bytes: Vec<u8> = env::read();
-    let image_id_opt: Option<Digest> = bincode::deserialize(&serialized_image_id_opt_bytes)
-        .expect("Failed to deserialize image_id_opt on guest");
+fn process_proof_containers(
+    proof_containers: &[ProofContainer],
+    initial_transport_pcf: f64,
+) -> f64 {
+    let mut current_transport_pcf = initial_transport_pcf;
 
-    let serialized_journal_opt_bytes: Vec<u8> = env::read();
-    let journal_opt: Option<Journal> = bincode::deserialize(&serialized_journal_opt_bytes)
-        .expect("Failed to deserialize journal_opt on guest");
+    for proof_container in proof_containers {
+        let image_id: Digest = proof_container.image_id.clone();
+        let journal: Journal = proof_container.journal.clone();
+
+        env::verify(image_id.clone(), journal.bytes.as_slice()).unwrap();
+        env::log(&format!("Guest: Image ID verified successfully: {}", image_id));
+
+        let pcf: f64 = journal.decode().expect("Failed to decode journal");
+        env::log(&format!("Guest: PCF value from previous proof: {}", pcf));
+        current_transport_pcf = pcf + current_transport_pcf;
+    }
+
+    current_transport_pcf
+}
+
+fn main() {
+    let start = env::cycle_count();
+
+    // Initialize
+    env::log("Guest: Starting the guest program...");
     let mut transport_pcf: f64 = 0.0;
 
+    // Read inputs
+    env::log("Guest: Reading Inputs...");
+    let product_footprint: ProofingDocument = env::read();
+    let serialized_proof_containers: Vec<u8> = env::read();
+    let proof_containers: Vec<ProofContainer> = bincode::deserialize(&serialized_proof_containers)
+        .expect("Guest: Failed to deserialize proof_containers");
+
+    // Verify previous proofs and add pcf value 
+    transport_pcf = process_proof_containers(&proof_containers, transport_pcf);
+
     let ileap_extension: &Extension = &product_footprint.productFootprint.extensions[0];
-
-    image_id_opt.and_then(|image_id| {
-        journal_opt.map(|journal| {
-            env::verify(image_id, journal.bytes.as_slice()).unwrap();
-            env::log(&format!("Guest: Image ID verified successfully: {}", image_id));
-        })
-    });
-/* 
-    if let Some(proof_extension) = &product_footprint.proof {
-        let receipt_bytes: Vec<u8> = general_purpose::STANDARD
-            .decode(&proof_extension.data.pcfProofs[0].proofReceipt)
-            .expect("Guest: Fehler beim Deserialisieren des Receipts.");
-        env::log(&format!("Guest: Receipt erfolgreich deserialisiert."));
-
-        let receipt: Receipt = bincode
-            ::deserialize(&receipt_bytes)
-            .expect("Failed to deserialize inner receipt bytes");
-
-        let inner_image_id: Digest = Digest::new(proof_extension.data.pcfProofs[0].imageId);
-
-        match receipt.verify(inner_image_id.clone()) {
-            Ok(()) => {
-                env::log(&format!("Guest: Innerer Proof erfolgreich verifiziert!"));
-                let journal: Journal = receipt.journal;
-                env::log(
-                    &format!(
-                        "Guest: Journal aus innerem Proof gelesen (Länge: {} Bytes).",
-                        journal.bytes.len()
-                    )
-                );
-
-                let inner_program_output: f64 = journal
-                    .decode()
-                    .expect("Guest: Fehler beim Dekodieren des Journals des inneren Proofs.");
-                env::log(
-                    &format!("Guest: Inhalt des inneren Journals: '{}'", inner_program_output)
-                );
-
-                env::commit(
-                    &format!("Innerer Proof erfolgreich verifiziert. Ausgabe: {}", inner_program_output)
-                );
-                env::log(&format!("Guest: Verifizierungsstatus ins Journal geschrieben."));
-            }
-            Err(e) => {
-                env::log(
-                    &format!("Guest: Fehler bei der Verifizierung des inneren Proofs: {:?}", e)
-                );
-                panic!("Innerer Proof konnte nicht verifiziert werden!");
-            }
-        }
-    } */
 
     let tces: &Vec<TCE> = &ileap_extension.data.tces;
     let ssd: &Vec<TceSensorData> = &product_footprint.signedSensorData
@@ -299,11 +272,6 @@ fn main() {
         }
     }
 
-    fn add_emissions(emissions: f64, pcf_previous: f64) -> f64 {
-        let pcf_new: f64 = pcf_previous + emissions;
-        return pcf_new;
-    }
-
     fn emission_factor_toc(toc_data: &Vec<TocData>, toc_id: String) -> f64 {
         let right_toc_data: &TocData = toc_data
             .into_iter()
@@ -332,6 +300,6 @@ fn main() {
 
     env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
     env::commit(&transport_pcf);
-    env::log(&format!("End of guest programm. Proof can take a while..."));
-    //let end = env::cycle_count();
+    let end = env::cycle_count();
+    env::log(&format!("End of guest programm. Cycles: {}", end - start));
 }
