@@ -1,8 +1,11 @@
 use proving_service_core::product_footprint::ProofExtension;
+use proving_service_core::proofing_document::TceSensorData;
+use proving_service_core::sig_container::SignatureContainer;
 use risc0_zkvm::{ Receipt, ExecutorEnvBuilder, sha::Digest };
 use base64::engine::general_purpose;
 use base64::Engine;
 use proving_service_core::proof_container::ProofContainer;
+use crate::sig_verifier::verify_signature;
 
 pub fn process_and_write_proofs<'a>(
     proof_extension_opt: &Option<ProofExtension>,
@@ -66,3 +69,78 @@ pub fn process_and_write_proofs<'a>(
             .expect("Error while writing ProofContainers to Builder.");
     }
 }
+
+pub fn process_and_write_signatures<'a>(
+    signed_sensor_data_vec_opt: &Option<Vec<TceSensorData>>,
+    env_builder: &mut ExecutorEnvBuilder<'a>
+) {
+    let mut sig_containers: Vec<SignatureContainer> = Vec::new();
+
+    // Check if the proofing document has signatures
+    if let Some(signed_sensor_data_vec) = &signed_sensor_data_vec_opt {
+        // Iterate
+        for signed_sensor_data in signed_sensor_data_vec {
+            if verify_signature(&signed_sensor_data.commitment, &signed_sensor_data.signedSensorData, &signed_sensor_data.sensorkey) {
+                // Create SignatureContainer
+                let sig_container = SignatureContainer {
+                    tceId: signed_sensor_data.tceId.clone(),
+                    commitment: signed_sensor_data.commitment.clone(),
+                    salt: signed_sensor_data.salt.clone(),
+                    sensorData: signed_sensor_data.sensorData.clone(),
+                };
+
+                sig_containers.push(sig_container);
+            } else {
+                eprintln!("Signatur: UNGÜLTIG");
+                continue;
+            }
+        }
+
+        // Serialize proof containers
+        let serialized_sig_containers = bincode
+            ::serialize(&sig_containers)
+            .expect("Failed to serialize proof_containers");
+
+        // Write to env_builder
+        env_builder
+            .write(&serialized_sig_containers)
+            .expect("Error while writing ProofContainers to Builder.");
+    }
+}
+
+// pub fn process_and_write_signatures2<'a>(
+//     signed_sensor_data_vec_opt: &Option<Vec<TceSensorData>>,
+//     env_builder: &mut ExecutorEnvBuilder<'a>
+// ) {
+//     let mut sig_containers: Vec<SignatureContainer> = Vec::new();
+
+//     // Check if the proofing document has signatures
+//     if let Some(signed_sensor_data_vec) = &signed_sensor_data_vec_opt {
+//         // Iterate
+//         for signed_sensor_data in signed_sensor_data_vec {
+//             if let Some(sensor_data_hash) = verify_signature(&signed_sensor_data) {
+//                 // Create SignatureContainer
+//                 let sig_container = SignatureContainer {
+//                     tceId: signed_sensor_data.tceId.clone(),
+//                     sensorDataHash: sensor_data_hash.clone(),
+                    
+//                 };
+
+//                 sig_containers.push(sig_container);
+//             } else {
+//                 eprintln!("Signatur: UNGÜLTIG");
+//                 continue;
+//             }
+//         }
+
+//         // Serialize proof containers
+//         let serialized_sig_containers = bincode
+//             ::serialize(&sig_containers)
+//             .expect("Failed to serialize proof_containers");
+
+//         // Write to env_builder
+//         env_builder
+//             .write(&serialized_sig_containers)
+//             .expect("Error while writing ProofContainers to Builder.");
+//     }
+// }

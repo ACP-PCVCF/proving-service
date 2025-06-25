@@ -15,8 +15,28 @@ use proving_service_core::proofing_document::*;
 use risc0_zkvm::{ default_prover, ExecutorEnv };
 use env_helper::process_and_write_proofs;
 use base64::{ engine::general_purpose, Engine as _ };
+use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
+use rsa::pkcs1v15::Pkcs1v15Sign;
+use sha2::{Sha256, Digest as Sha2DigestTrait};
+use const_oid::AssociatedOid;
+use pkcs1::ObjectIdentifier;
+use digest::{
+    self,
+    Digest as DigestTrait,
+    OutputSizeUser,
+    Reset,
+    FixedOutputReset,
+    generic_array::GenericArray,
+    FixedOutput,
+    Update
+};
+
+use crate::env_helper::process_and_write_signatures;
+
+
 
 mod env_helper;
+mod sig_verifier;
 
 #[derive(Serialize)]
 #[allow(non_snake_case)]
@@ -123,18 +143,22 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     // Take away the proof extension from the proving document
     let taken_proof_extension = proving_document.proof.take();
 
+    // Take away the signed sensor data from the proving document
+    let taken_signed_sensor_data = proving_document.signedSensorData.take();
+
     let mut builder = ExecutorEnv::builder();
     let executor_env_builder = builder
         .write(&proving_document)
         .expect("Host: Failed to write proving_document to ExecutorEnv builder");
 
     process_and_write_proofs(&taken_proof_extension, executor_env_builder);
-
+    process_and_write_signatures(&taken_signed_sensor_data, executor_env_builder);
 
     let env = executor_env_builder.build().expect("Host: Failed to build ExecutorEnv!");
 
     let prover = default_prover();
     println!("ELF size: {}", GUEST_PROOFING_LOGIC_ELF.len());
+
     let prove_info = match prover.prove(env, GUEST_PROOFING_LOGIC_ELF) {
         Ok(info) => info,
         Err(e) => {
