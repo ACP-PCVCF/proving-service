@@ -106,9 +106,9 @@ pub fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &
     let signature_b64 = &signed_sensor_data;
     let public_key_pem = &sensorkey;
 
-    println!("Payload: {}", payload);
-    println!("Signature: {}", signature_b64);
-    println!("Public Key PEM: {}", public_key_pem);
+    // println!("Payload: {}", payload);
+    // println!("Signature: {}", signature_b64);
+    // println!("Public Key PEM: {}", public_key_pem);
 
     let public_key = match RsaPublicKey::from_public_key_pem(public_key_pem) {
         Ok(pk) => pk,

@@ -15,25 +15,8 @@ use proving_service_core::proofing_document::*;
 use risc0_zkvm::{ default_prover, ExecutorEnv };
 use env_helper::process_and_write_proofs;
 use base64::{ engine::general_purpose, Engine as _ };
-use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
-use rsa::pkcs1v15::Pkcs1v15Sign;
-use sha2::{Sha256, Digest as Sha2DigestTrait};
-use const_oid::AssociatedOid;
-use pkcs1::ObjectIdentifier;
-use digest::{
-    self,
-    Digest as DigestTrait,
-    OutputSizeUser,
-    Reset,
-    FixedOutputReset,
-    generic_array::GenericArray,
-    FixedOutput,
-    Update
-};
-
 use crate::env_helper::process_and_write_signatures;
-
-
+use crate::sig_verifier::verify_signature;
 
 mod env_helper;
 mod sig_verifier;
@@ -127,7 +110,7 @@ async fn main() {
 }
 
 async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
-    // println!("Rohdaten der Nachricht: {}", &shipments_json);
+    println!("-------- Host: Received message --------");
 
     // Deserialize the JSON string into a ProvingDocument
     let mut proving_document: ProofingDocument = match serde_json::from_str(shipments_json) {
@@ -137,8 +120,8 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
             return None;
         }
     };
-
-    print!("Host: Received proving document with ID: {}", proving_document.productFootprint.id);
+    println!("Host: Received proving document with ID: {}", proving_document.productFootprint.id);
+    println!("Host: From Company: {}", proving_document.productFootprint.companyName);
 
     // Take away the proof extension from the proving document
     let taken_proof_extension = proving_document.proof.take();
@@ -146,6 +129,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     // Take away the signed sensor data from the proving document
     let taken_signed_sensor_data = proving_document.signedSensorData.take();
 
+    // Build the ExecutorEnv
     let mut builder = ExecutorEnv::builder();
     let executor_env_builder = builder
         .write(&proving_document)
@@ -156,6 +140,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
 
     let env = executor_env_builder.build().expect("Host: Failed to build ExecutorEnv!");
 
+    // Start the proving process
     let prover = default_prover();
     println!("ELF size: {}", GUEST_PROOFING_LOGIC_ELF.len());
 
@@ -194,7 +179,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
 
     println!("Journal output: {}", journal_output);
 
-    println!("Handed over response ...");
+    println!("Handed over response ...\n");
 
     let proof_respone = ProofResponse {
         productFootprintId: proving_document.productFootprint.id,
@@ -203,10 +188,11 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
         pcf: journal_output,
         imageId: format!("{:?}", GUEST_PROOFING_LOGIC_ID),
     };
-    
-    let json_string = serde_json::to_string_pretty(&proof_respone).ok()?;
-    let mut file = File::create("output.json").ok()?;
-    file.write_all(&json_string.as_bytes()).ok()?;
+
+    // Write Output to file (for debugging purposes)
+    // let json_string = serde_json::to_string_pretty(&proof_respone).ok()?;
+    // let mut file = File::create("output.json").ok()?;
+    // file.write_all(&json_string.as_bytes()).ok()?;
 
     Some(proof_respone)
 }
