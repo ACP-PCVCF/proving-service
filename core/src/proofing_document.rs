@@ -2,15 +2,14 @@
 
 use serde::{Deserialize, Serialize};
 use super::hoc_toc_data::{HocData, TocData};
-use super::product_footprint::{ProductFootprint, ProofExtension};
-use super::sensor_data::{SensorData};
+use super::product_footprint::{ProductFootprint, ProofExtension, Distance};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TceSensorData {
     pub tceId: String,
     pub sensorkey: String,
     pub signedSensorData: String,
-    pub sensorData: String,
+    pub sensorData: SensorData,
     pub commitment: String,
     pub salt: String,
 }
@@ -22,4 +21,9 @@ pub struct ProofingDocument {
     pub hocData: Vec<HocData>,
     pub signedSensorData: Option<Vec<TceSensorData>>,
     pub proof: Option<ProofExtension>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SensorData {
+    pub distance: Distance,
 }
