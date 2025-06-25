@@ -147,10 +147,11 @@
             "tceId": "tce_abc_789",
             "camundaProcessInstanceKey": "camunda_key_456",
             "camundaActivityId": "activity_xyz_123",
-            "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkCPkUUaiuj9UBwVoQBMf\nG+3M3Z1pPsCFgZ9J8/TJtz1H7mGaY3UPdRaS2wiz0EM/PXdNs9aIwZcdlAXrdcm+\nSWlJcN40i/7hb+Qx1eIZVxWhBJs7AEmpi45h/e5C3SGrxpyi86qWeOAidunsAt+U\nOM7NJwvJmgWm1RZ6B8NNddC/ajEyTcS+xrcnCZ1dmHzK9xme9aWu3TwqxnPXUF3P\nYxigt44e4IxNVgm4Ai91Jglx3du2pARrBIRMc2XG/4jVHx/9cx19zgtoSdZPd8nf\n7VpJwStjzsE2Ff9Mkpsfc8gCG0IZY2XEu5tX28Hl6CkCCRYQSy/ahbnAsZwJF4HT\nCQIDAQAB\n-----END PUBLIC KEY-----\n",
-            "signedSensorData": "ZtBIQIbyQrvMKZRmcjf3ZoMpgej8QaffM9zUTzUOKFaySuFDotxDtoJPZQ+T76t9QJAd/kmPQl1zY4SUwHxzoG2+i20VwOXfts1uPI9GVneF/7iEIZAshgkwTjnTNPF8dnoI1Ppw7ZRQWgIp16Oy7EDdYfdB6TdmqvkS/RWx95aT84zr1UZRBKL6At4uiKWFurlp1ba23it4jwmDo24aK6sYbXjDUEtmj1bjyPtejud2yp5LJ6ZaXW8k+kOAeCOmvpqF2LlS+bvwYlh0d6GZR7u/uj98XyJ5wlZ6Xfvo3pajfIAga5HjteLnCfvWfiePLfFdKHQZQof08YCab5VEJA==",
-            "sensorData":"{\"distance\":{\"actual\":91.71,\"gcd\":null,\"sfd\":null}}",
-            "sensorDataHash":"y3z2MGaDrDB9Ix0bGIqJBSTniOzpiNAThsXxd9zG5lA="
+            "sensorkey":"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsIsGo5c/RATwDFCkibVr\n0q8ZuMf8ec762bheprFVN6KbR6yTJicdJTAa++X8OHAUwVeCJcIrx6QS1hR6MURM\nQmZtdUay6njjIHT6hZ7fVDffyWx1LG1IJrDxNh+DTsnPher/bcd/vGtFo7p2YASC\nzllFcV1HE6blWQJBgTe8FJdrktccaLdsJ5fMwEshEFCubncYoxmeKtUaplXZjSVT\nl2tOjr+RI9Xf+1qXdG2/n/mRbiXljs/dt4QodpPC9G9Xcwn1i4f8IQJb0VJlsfH1\nJ5YdDErRygB1oR3BChgRzyWYCoHcQI/ULAj8MS1PiunOaigZbDBG1It0AiXP9rmL\n1QIDAQAB\n-----END PUBLIC KEY-----\n",
+            "signedSensorData":"nhiU7YGWMRC82jiay+6nj6uWh7Wr3PTaOsImeOS4dCD4vfBEtV8Mi5Ax6AvpjqO47NWcPSguXM3S0boL1JatEaq+p45VC2bZgWF7HH7Ct6h8pcSOkS+R8fM6Cxmhb8UtA0D7zs8xuF6pzBcxfhryazhPaTT14rOnn6ME3httxUVlJUzXRXh2cxfvl6RTSRFCEKxbFIpsVFamUTjPEXdej7RZK7G0nVfvQJTotAld7iLE/WHuy6WCJdZTBTQLpLFzAhe4rfQYemjxresFwRcpMuaARgIW0Ea7ofmGLGZP6jbeu7cNFrucu0TbIozHIg3v4RnHzuo7/rdsSHmyTWEmmA==",
+            "sensorData":"{\"distance\":{\"actual\":397.35,\"gcd\":null,\"sfd\":null}}",
+            "salt":"nRClKVHO0jbE85AOvTthUg2xhg65P8fL",
+            "commitment":"BxY7+ws4/LIwLtn+5pfL88BWiiMJfoBwMmVwq+ABK+c="
         }
     ]
 }

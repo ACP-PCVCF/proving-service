@@ -26,7 +26,6 @@ use digest::{
 use csv::Writer;
 #[cfg(target_os = "linux")]
 use perf_event::Builder;
-use postcard;
 mod verify;
 
 #[derive(Deserialize, Serialize)]
@@ -68,10 +67,9 @@ struct SignedSensorData {
     #[serde(rename = "signedSensorData")]
     signed_sensor_data: String, 
     #[serde(rename = "sensorData")]
-    //sensor_data: SensorDataPayload, 
     sensor_data: String,
-    #[serde(rename = "sensorDataHash")]
-    sensor_data_hash: String,
+    salt: String,
+    commitment: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -294,42 +292,25 @@ impl DigestTrait for Sha256WithOid {
 }
 
 
-fn verify_signature(info: &SignedSensorData) -> bool {
-    //let payload_string = match serde_json::to_string(&info.sensor_data) {
-    //    Ok(s) => s,
-    //    Err(e) => {
-    //        env::log(format!("Fehler beim Serialisieren von sensor_data_payload zu String: {:?}", e).as_str());
-    //        return false;
-    //    }
-    //};
-    //let payload = payload_string.as_bytes();
+fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &str) -> bool {
+    let payload = &commitment;
+    let signature_b64 = &signed_sensor_data;
+    let public_key_pem = &sensorkey;
 
-    //let payload = &info.sensor_data;
-    let payload = &info.sensor_data_hash;
-    let signature_b64 = &info.signed_sensor_data;
-    let public_key_pem = &info.sensorkey;
-    //env::log(format!("Payload (Bytes): {:?}", payload).as_str());
-    //env::log(format!("Payload: {}", payload).as_str());
     println!("Payload: {}", payload);
-    //env::log(format!("Signature: {}", signature_b64).as_str());
     println!("Signature: {}", signature_b64);
-    //env::log(format!("Public Key PEM: {}", public_key_pem).as_str());
     println!("Public Key PEM: {}", public_key_pem);
-
 
     let public_key = match RsaPublicKey::from_public_key_pem(public_key_pem) {
         Ok(pk) => pk,
         Err(e) => {
-            //env::log(format!("Fehler beim Laden des Public Keys (SPKI erwartet): {:?}", e).as_str());
             eprintln!("Fehler beim Laden des Public Keys (SPKI erwartet): {:?}", e);
             match RsaPublicKey::from_pkcs1_pem(public_key_pem) {
                 Ok(pk_fallback) => {
-                    //env::log("Warnung: Public Key wurde als PKCS#1 geladen, SPKI wird bevorzugt.");
                     eprintln!("Warnung: Public Key wurde als PKCS#1 geladen, SPKI wird bevorzugt.");
                     pk_fallback
                 },
                 Err(e_fallback) => {
-                    //env::log(format!("Fehler beim Laden des Public Keys auch als PKCS#1: {:?}", e_fallback).as_str());
                     eprintln!("Fehler beim Laden des Public Keys auch als PKCS#1: {:?}", e_fallback);
                     return false;
                 }
@@ -339,13 +320,11 @@ fn verify_signature(info: &SignedSensorData) -> bool {
 
     let mut hasher = Sha256::new();
     Update::update(&mut hasher, payload.as_bytes());
-    //Update::update(&mut hasher, payload);
     let digest_val = hasher.finalize();
 
     let signature = match general_purpose::STANDARD.decode(signature_b64) {
         Ok(sig) => sig,
         Err(e) => {
-            //env::log(format!("Fehler beim Dekodieren der Signatur: {:?}", e).as_str());
             eprintln!("Fehler beim Dekodieren der Signatur: {:?}", e);
             return false;
         }
@@ -354,12 +333,10 @@ fn verify_signature(info: &SignedSensorData) -> bool {
     let padding = Pkcs1v15Sign::new::<Sha256WithOid>();
     match public_key.verify(padding, &digest_val, &signature) {
         Ok(_) => {
-            //env::log("Signatur ist gültig.");
             println!("Signatur ist gültig.");
             true
         }
         Err(e) => {
-            //env::log(format!("Verifikation fehlgeschlagen: {:?}", e).as_str());
             eprintln!("Verifikation fehlgeschlagen: {:?}", e);
             false
         }
@@ -373,7 +350,7 @@ fn main() {
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .init();
 
-    let run_id = Uuid::new_v4().to_string(); // Corrected: Use imported Uuid
+    let run_id = Uuid::new_v4().to_string(); 
     //let mut host_metrics = HostMetrics::new(format!("{}_host_metrics.csv", run_id), run_id.clone());
     let mut host_metrics = HostMetrics::new();
     
@@ -398,19 +375,6 @@ fn main() {
         signatures,
     };
 
-    //for signature in input.signatures {
-    for signature in &combined_input.signatures {
-        if verify_signature(&signature) {
-            //env::log(format!("Shipment {}: GÜLTIG", shipment.shipment_id).as_str());
-            //env::log(format!("Erfolgreich Signatur verifiziert").as_str());
-            println!("Erfolgreich Signatur verifiziert");
-        } else {
-            //env::log(format!("Shipment {}: UNGÜLTIG", shipment.shipment_id).as_str());
-            //env::log(format!("Signatur: UNGÜLTIG").as_str());
-            eprintln!("Signatur: UNGÜLTIG");
-        }
-    }
-
     let env = ExecutorEnv::builder()
         .write(&combined_input)
         .expect("Failed to write combined input to ExecutorEnv")
@@ -424,10 +388,19 @@ fn main() {
     let prove_duration = prove_start_time.elapsed();
 
     let receipt = prove_info.receipt;
-    let (pcf_total, guest_metrics_from_journal): (u32, GuestMetrics) = receipt.journal.decode().unwrap();
+    let (pcf_total, guest_metrics_from_journal, commitment, signed_sensor_data, sensorkey): (u32, GuestMetrics, String, String, String) = receipt.journal.decode().unwrap();
 
     println!("Guest Metrics from Journal: {:?}", guest_metrics_from_journal);
+
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
+
+    //for signature in &combined_input.signatures {
+    if verify_signature(&commitment, &signed_sensor_data, &sensorkey) {
+        println!("Erfolgreich Signatur verifiziert");
+    } else {
+        eprintln!("Signatur: UNGÜLTIG");
+    }
+    //}
 
     print!(
         "The total CO2-Emission for the process pID-3423452 is {} kg CO2e",
