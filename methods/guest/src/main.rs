@@ -49,6 +49,7 @@ fn verify_commitment(
 ) {
     for sig_container in sig_containers {
         if sig_container.tceId == *tceId {
+            env::log(&format!("Sensor Data: {}", sig_container.sensorData));
             let concat = format!("{}{}", sig_container.sensorData, sig_container.salt);
             assert!(hash(&concat) == sig_container.commitment, "Commitment matcht nicht den hash vom sensor data and salt");
         }

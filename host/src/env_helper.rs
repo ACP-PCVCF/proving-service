@@ -57,17 +57,17 @@ pub fn process_and_write_proofs<'a>(
             //     pcf_proof.productFootprintId
             // );
         }
-
-        // Serialize proof containers
-        let serialized_proof_containers = bincode
-            ::serialize(&proof_containers)
-            .expect("Failed to serialize proof_containers");
-
-        // Write to env_builder
-        env_builder
-            .write(&serialized_proof_containers)
-            .expect("Error while writing ProofContainers to Builder.");
     }
+
+    // Serialize proof containers
+    let serialized_proof_containers = bincode
+        ::serialize(&proof_containers)
+        .expect("Failed to serialize proof_containers");
+
+    // Write to env_builder
+    env_builder
+        .write(&serialized_proof_containers)
+        .expect("Error while writing ProofContainers to Builder.");
 }
 
 pub fn process_and_write_signatures<'a>(
@@ -80,13 +80,20 @@ pub fn process_and_write_signatures<'a>(
     if let Some(signed_sensor_data_vec) = &signed_sensor_data_vec_opt {
         // Iterate
         for signed_sensor_data in signed_sensor_data_vec {
-            if verify_signature(&signed_sensor_data.commitment, &signed_sensor_data.signedSensorData, &signed_sensor_data.sensorkey) {
+            if
+                verify_signature(
+                    &signed_sensor_data.commitment,
+                    &signed_sensor_data.signedSensorData,
+                    &signed_sensor_data.sensorkey
+                )
+            {
                 // Create SignatureContainer
                 let sig_container = SignatureContainer {
                     tceId: signed_sensor_data.tceId.clone(),
                     commitment: signed_sensor_data.commitment.clone(),
                     salt: signed_sensor_data.salt.clone(),
-                    sensorData: signed_sensor_data.sensorData.clone(),
+                    sensorData: serde_json::to_string(&signed_sensor_data.sensorData)
+                        .expect("Failed to serialize sensorData"),
                 };
 
                 sig_containers.push(sig_container);
@@ -123,7 +130,7 @@ pub fn process_and_write_signatures<'a>(
 //                 let sig_container = SignatureContainer {
 //                     tceId: signed_sensor_data.tceId.clone(),
 //                     sensorDataHash: sensor_data_hash.clone(),
-                    
+
 //                 };
 
 //                 sig_containers.push(sig_container);

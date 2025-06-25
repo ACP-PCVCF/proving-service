@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+use super::proofing_document::SensorData;
 
 use serde::{Deserialize, Serialize};
 

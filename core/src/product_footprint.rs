@@ -25,14 +25,6 @@ pub struct TCE {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(untagged)] 
-pub enum ExtensionVariant {
-    iLeap(Extension),
-    proof(ProofExtension),
-}
-
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProductProof {
     pub productFootprintId: String,
     pub proofReceipt: String,
