@@ -22,10 +22,11 @@ base64 = "0.22"
 
 # Bincode for serializing the receipt
 bincode = "1.3"
-
+bytemuck = "1.23.1"
+anyhow = "1.0.98"
 # Tracing (optional for debug/logging)
 tracing = "0.1"
-
+hex = "0.4"
 rdkafka = { version = "0.29", features = ["cmake-build", "tokio"] }
 rsa = "0.9"
 rand = "0.8"
@@ -34,5 +35,6 @@ pem = "1.0"
 pkcs1 = "0.7"
 const-oid = "0.9"
 digest = "0.10"
+serde_path_to_error = "0.1.17"
 
 #features = ["tokio", "message"]

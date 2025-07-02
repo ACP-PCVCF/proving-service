@@ -30,7 +30,7 @@ pub struct ProductProof {
     pub proofReceipt: String,
     pub pcf: f64,
     pub proofReference: String,
-    pub imageId: [u32; 8],
+    pub imageId: String,//[u32; 8],
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -54,7 +54,6 @@ pub struct ProofExtension {
     #[serde(default = "default_spec_version")]
     pub specVersion: String,
     pub dataSchema: String,
-    pub author: String,
     pub data: ProofExtensionData,
 }
 

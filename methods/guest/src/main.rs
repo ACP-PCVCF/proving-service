@@ -2,6 +2,7 @@ extern crate alloc;
 use bincode;
 use alloc::{ vec::Vec, string::String, format };
 use proving_service_core::proof_container::ProofContainer;
+use proving_service_core::sig_container::GuestCommunication;
 use proving_service_core::sig_container::SignatureContainer;
 use risc0_zkvm::guest::env;
 use risc0_zkvm::Journal;
@@ -43,18 +44,24 @@ fn process_proof_containers(
     current_transport_pcf
 }
 
-fn verify_commitment(
-    sig_containers: &[SignatureContainer],
-    tceId: String,
-) {
-    for sig_container in sig_containers {
-        if sig_container.tceId == *tceId {
-            env::log(&format!("Sensor Data: {}", sig_container.sensorData));
-            let concat = format!("{}{}", sig_container.sensorData, sig_container.salt);
-            assert!(hash(&concat) == sig_container.commitment, "Commitment matcht nicht den hash vom sensor data and salt");
-        }
-    }
-}
+// fn verify_commitment(
+//     sig_containers: &[SignatureContainer],
+//     tceId: String,
+// ) {
+//     for sig_container in sig_containers {
+//         if sig_container.tceId == *tceId {
+//             env::log(&format!("Sensor Data: {}", sig_container.sensorData));
+//             let concat = format!("{}{}", sig_container.sensorData, sig_container.salt);
+//             assert!(hash(&concat) == sig_container.commitment, "Commitment matcht nicht den hash vom sensor data and salt");
+//         }
+//     }
+// }
+
+// fn check_signature(
+//     tceId: String,
+// ) {
+
+// }
 
 fn main() {
     let start = env::cycle_count();
@@ -65,13 +72,14 @@ fn main() {
 
     // Read inputs
     env::log("Guest: Reading Inputs...");
+    let mut sig_containers: Vec<SignatureContainer> = Vec::new();
     let product_footprint: ProofingDocument = env::read();
     let serialized_proof_containers: Vec<u8> = env::read();
-    let serialized_sig_containers: Vec<u8> = env::read();
+    // let serialized_sig_containers: Vec<u8> = env::read();
     let proof_containers: Vec<ProofContainer> = bincode::deserialize(&serialized_proof_containers)
         .expect("Guest: Failed to deserialize proof_containers");
-    let sig_containers: Vec<SignatureContainer> = bincode::deserialize(&serialized_sig_containers)
-        .expect("Guest: Failed to deserialize proof_containers");
+    // let sig_containers: Vec<SignatureContainer> = bincode::deserialize(&serialized_sig_containers)
+    //     .expect("Guest: Failed to deserialize proof_containers");
 
     // Verify previous proofs and add pcf value 
     transport_pcf = process_proof_containers(&proof_containers, transport_pcf);
@@ -89,9 +97,24 @@ fn main() {
                 );
 
                 // Verify commitment
-                verify_commitment(&sig_containers, tce.tceId.clone());               
+                // verify_commitment(&sig_containers, tce.tceId.clone());               
 
                 let emissions: f64 = tce.mass * emission_factor * distance.actual; // TODO: Add here a correct emission factor later
+
+                if let Some(signed_sensor_data_list) = &product_footprint.signedSensorData {
+                    for signed_sensor_data in signed_sensor_data_list {
+                        if signed_sensor_data.tceId == tce.tceId {
+                            let concat = format!("{}{}", serde_json::to_string(&signed_sensor_data.sensorData).unwrap(), signed_sensor_data.salt);
+                            assert!(hash(&concat) == signed_sensor_data.commitment, "Commitment does not match the hash of sensor data and salt");
+                            sig_containers.push(SignatureContainer {
+                                commitment: signed_sensor_data.commitment.clone(),
+                                signature: signed_sensor_data.signedSensorData.clone(),
+                                pub_key: signed_sensor_data.sensorkey.clone(),
+                            });
+                        }
+                    }
+                }
+
                 println!("Emissions from TOC {}: {} kg CO2e", tce.tceId, emissions);
                 transport_pcf += emissions;
             } else {
@@ -137,7 +160,18 @@ fn main() {
     }
 
     env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
+    // let comm: GuestCommunication {
+    //     pcf_value: transport_pcf,
+    //     encoded_sig_containers: general_purpose::STANDARD.encode(
+    //         bincode::serialize(&sig_containers)
+    //             .expect("Failed to serialize sig_containers")
+    //     ),
+    // }
     env::commit(&transport_pcf);
+    let serialized_sig_containers: Vec<u8> = bincode::serialize(&sig_containers)
+        .expect("Failed to serialize sig_containers");
+    let encoded_sig_containers = general_purpose::STANDARD.encode(&serialized_sig_containers);
+    env::commit(&serialized_sig_containers);
     let end = env::cycle_count();
     env::log(&format!("End of guest programm. Cycles: {}", end - start));
 }

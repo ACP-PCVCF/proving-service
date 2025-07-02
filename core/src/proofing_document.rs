@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
 
 use serde::{Deserialize, Serialize};
+use crate::product_footprint::ProductProof;
+
 use super::hoc_toc_data::{HocData, TocData};
 use super::product_footprint::{ProductFootprint, ProofExtension, Distance};
 
@@ -20,7 +22,7 @@ pub struct ProofingDocument {
     pub tocData: Vec<TocData>,
     pub hocData: Vec<HocData>,
     pub signedSensorData: Option<Vec<TceSensorData>>,
-    pub proof: Option<ProofExtension>,
+    pub proof: Vec<ProductProof>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
