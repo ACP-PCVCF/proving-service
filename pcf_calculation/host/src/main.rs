@@ -6,8 +6,7 @@ use std::error::Error;
 use std::fs;
 use std::time::Instant; 
 use uuid::Uuid; 
-use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
-use rsa::pkcs1v15::Pkcs1v15Sign;
+use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey, pkcs1v15::Pkcs1v15Sign};
 use sha2::{Sha256, Digest as Sha2DigestTrait};
 use base64::{engine::general_purpose, Engine as _};
 use const_oid::AssociatedOid;
@@ -78,12 +77,18 @@ struct CombinedInput {
     signatures: Vec<SignedSensorData>,
 }
 
+/* 
 #[derive(Serialize)]
 struct ReceiptExport {
     image_id: String,
     receipt: risc0_zkvm::Receipt,
-}
+}*/
 
+#[derive(Serialize, Deserialize)]
+struct ReceiptExportJson {
+    image_id: String,
+    receipt: String,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct GuestMetrics {
@@ -394,19 +399,19 @@ fn main() {
 
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
 
-    //for signature in &combined_input.signatures {
     if verify_signature(&commitment, &signed_sensor_data, &sensorkey) {
         println!("Erfolgreich Signatur verifiziert");
     } else {
         eprintln!("Signatur: UNGÜLTIG");
     }
-    //}
 
     print!(
         "The total CO2-Emission for the process pID-3423452 is {} kg CO2e",
         { pcf_total }
     );
 
+
+    /*
     let image_id_digest = Digest::from(GUEST_CODE_FOR_ZK_PROOF_ID);
     let image_id_hex = image_id_digest.to_string();
 
@@ -416,10 +421,40 @@ fn main() {
     };
 
     let receipt_json = to_string_pretty(&export).expect("JSON serialization failed");
-
+    
     fs::write("receipt_output.json", receipt_json).expect("Couldn't write receipt_output.json");
 
     println!("Receipt + Image ID gespeichert in: receipt_output.json");
+    */
+
+
+    let receipt_bytes = match bincode::serialize(&receipt) {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            eprintln!("Host: Failed to serialize receipt: {}", e);
+            return;
+        }
+    };
+    let encoded_receipt = general_purpose::STANDARD.encode(receipt_bytes);
+
+
+    //fs::write("receipt_output.bin", encoded_receipt).expect("Couldn't write receipt_output.bin");
+
+    let image_id_digest = Digest::from(GUEST_CODE_FOR_ZK_PROOF_ID);
+    let image_id_hex = image_id_digest.to_string();
+
+    let export2 = ReceiptExportJson {
+        image_id: image_id_hex,
+        receipt: encoded_receipt,
+    };
+
+    let receipt_json = to_string_pretty(&export2).expect("JSON serialization failed");
+    
+    fs::write("receipt_output.json", receipt_json).expect("Couldn't write receipt_output.json");
+
+    println!("Receipt + Image ID gespeichert in: receipt_output.json");
+
+    //println!("Receipt + Image ID gespeichert in: receipt_output.bin");
 
     if let Err(e) = verify::verify_receipt() {
         eprintln!("❌ Fehler bei der Verifikation: {:?}", e);

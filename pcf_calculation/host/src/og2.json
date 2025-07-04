@@ -152,6 +152,16 @@
             "sensorData":"{\"distance\":{\"actual\":397.35,\"gcd\":null,\"sfd\":null}}",
             "salt":"nRClKVHO0jbE85AOvTthUg2xhg65P8fL",
             "commitment":"BxY7+ws4/LIwLtn+5pfL88BWiiMJfoBwMmVwq+ABK+c="
+        },
+        {
+            "tceId": "tce_abc_788",
+            "camundaProcessInstanceKey": "camunda_key_456",
+            "camundaActivityId": "activity_xyz_123",
+            "sensorkey":"-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsIsGo5c/RATwDFCkibVr\n0q8ZuMf8ec762bheprFVN6KbR6yTJicdJTAa++X8OHAUwVeCJcIrx6QS1hR6MURM\nQmZtdUay6njjIHT6hZ7fVDffyWx1LG1IJrDxNh+DTsnPher/bcd/vGtFo7p2YASC\nzllFcV1HE6blWQJBgTe8FJdrktccaLdsJ5fMwEshEFCubncYoxmeKtUaplXZjSVT\nl2tOjr+RI9Xf+1qXdG2/n/mRbiXljs/dt4QodpPC9G9Xcwn1i4f8IQJb0VJlsfH1\nJ5YdDErRygB1oR3BChgRzyWYCoHcQI/ULAj8MS1PiunOaigZbDBG1It0AiXP9rmL\n1QIDAQAB\n-----END PUBLIC KEY-----\n",
+            "signedSensorData":"nhiU7YGWMRC82jiay+6nj6uWh7Wr3PTaOsImeOS4dCD4vfBEtV8Mi5Ax6AvpjqO47NWcPSguXM3S0boL1JatEaq+p45VC2bZgWF7HH7Ct6h8pcSOkS+R8fM6Cxmhb8UtA0D7zs8xuF6pzBcxfhryazhPaTT14rOnn6ME3httxUVlJUzXRXh2cxfvl6RTSRFCEKxbFIpsVFamUTjPEXdej7RZK7G0nVfvQJTotAld7iLE/WHuy6WCJdZTBTQLpLFzAhe4rfQYemjxresFwRcpMuaARgIW0Ea7ofmGLGZP6jbeu7cNFrucu0TbIozHIg3v4RnHzuo7/rdsSHmyTWEmmA==",
+            "sensorData":"{\"distance\":{\"actual\":397.35,\"gcd\":null,\"sfd\":null}}",
+            "salt":"nRClKVHO0jbE85AOvTthUg2xhg65P8fL",
+            "commitment":"BxY7+ws4/LIwLtn+5pfL88BWiiMJfoBwMmVwq+ABK+c="
         }
     ]
 }

@@ -1,5 +1,7 @@
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose, Engine as _};
 use hex;
+use methods::GUEST_CODE_FOR_ZK_PROOF_ID;
 use risc0_zkvm::{Digest, Receipt};
 use serde::Deserialize;
 use std::fs;
@@ -10,38 +12,34 @@ struct ReceiptExport {
     receipt: Receipt,
 }
 
+#[derive(Deserialize)]
+struct ReceiptExportJson {
+    image_id: String,
+    receipt: String, // Das ist der Base64-String
+}
+
 pub fn verify_receipt() -> Result<()> {
+    // 1. JSON-Datei lesen
+    let receipt_json_str = fs::read_to_string("receipt_output.json")
+        .with_context(|| format!("Konnte Datei '{}' nicht lesen", "receipt_output.json"))?;
 
-    let receipt_path = "receipt_output.json";
-
-    let receipt_data = fs::read_to_string(receipt_path)
-        .with_context(|| format!("Konnte Datei '{}' nicht lesen", receipt_path))?;
-
-    let export: ReceiptExport = serde_json::from_str(&receipt_data)
+    // 2. JSON in unseren Hilfs-Struct parsen
+    let export: ReceiptExportJson = serde_json::from_str(&receipt_json_str)
         .context("Deserialisierung des Receipts fehlgeschlagen")?;
 
+    // 3. Base64-String dekodieren -> zurück zu Bytes
+    let receipt_bytes = general_purpose::STANDARD
+        .decode(&export.receipt)
+        .context("Base64-Dekodierung fehlgeschlagen")?;
 
-    let image_id_vec = hex::decode(&export.image_id)
-        .context("Konvertierung der Image-ID in Bytes fehlgeschlagen")?;
-    let image_id_bytes: [u8; 32] = image_id_vec.try_into().map_err(|_| {
-        anyhow::anyhow!("Die Image-ID hat nicht die erwartete Länge von 32 Bytes")
-    })?;
-    let image_id = Digest::from_bytes(image_id_bytes);
+    // 4. Bytes mit bincode deserialisieren -> zurück zum Receipt-Objekt
+    let receipt: Receipt = bincode::deserialize(&receipt_bytes)
+        .context("Bincode-Deserialisierung des Receipts fehlgeschlagen")?;
 
-    // Verifizieren
-    match export.receipt.verify(image_id) {
-        Ok(_) => {
-            println!("✅ Receipt ist gültig!");
-            if let Ok(journal_value) = risc0_zkvm::serde::from_slice::<u32, u8>(&export.receipt.journal.bytes) {
-                println!("Journal value (u32): {}", journal_value);
-            } else {
-                println!("Journal bytes (could not decode as u32): {:?}", &export.receipt.journal.bytes);
-            }
-        }
-        Err(e) => {
-            println!("❌ Receipt ist UNGÜLTIG: {:?}", e);
-        }
-    }
+    // 5. Das wiederhergestellte Receipt verifizieren
+    receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID)?;
+
+    println!("✅ Receipt erfolgreich aus Datei geladen und verifiziert!");
 
     Ok(())
 }
