@@ -43,12 +43,29 @@ pub fn process_and_write_proofs<'a>(
 
             let image_id = Digest::from(image_id_bytes);
 
+            if let Err(e) = receipt.verify(image_id) {
+                eprintln!("Host: Previous receipt verification failed: {}", e);
+                return;
+            }
+
             // Clone Journal
             let journal = receipt.journal.clone();
 
             // Get journal data
-            let _pcf: u64 = journal.decode().unwrap();
-            let serialized_sig_containers: Vec<u8> = journal.decode().unwrap();
+            // let _pcf: u64 = journal.decode().unwrap();
+            // let serialized_sig_containers: Vec<u8> = journal.decode().unwrap();
+
+            // let sig_containers = bincode::deserialize::<Vec<SignatureContainer>>(
+            //     &serialized_sig_containers
+            // ).expect("Failed to deserialize signature containers");
+
+            let (journal_output, serialized_sig_containers): (f64, Vec<u8>) = match receipt.journal.decode() {
+                Ok(data) => data,
+                Err(e) => {
+                    eprintln!("Host: Failed to decode journal: {}", e);
+                    return;
+                }
+            };
 
             let sig_containers = bincode::deserialize::<Vec<SignatureContainer>>(
                 &serialized_sig_containers

@@ -4,6 +4,7 @@ use methods::{ GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID };
 
 use proving_service_core::product_footprint::ProductProof;
 use proving_service_core::sig_container::{self, SignatureContainer};
+use risc0_zkvm::Receipt;
 use serde::{ Serialize };
 use rdkafka::consumer::{ Consumer, StreamConsumer };
 use rdkafka::producer::{ FutureProducer, FutureRecord };
@@ -20,22 +21,25 @@ use base64::{ engine::general_purpose, Engine as _ };
 use serde_path_to_error::deserialize;
 mod env_helper;
 mod sig_verifier;
+use risc0_zkvm::Digest;
 
-// #[derive(Serialize)]
-// #[allow(non_snake_case)]
-// struct ProofResponse {
-//     productFootprintId: String,
-//     // proofReceipt: String,
-//     proofReceipt: risc0_zkvm::Receipt,
-//     proofReference: String,
-//     pcf: f64,
-//     imageId: String,
-// }
+#[derive(Serialize)]
+#[allow(non_snake_case)]
+struct ProofResponse {
+    // productFootprintId: String,
+    // proofReceipt: String,
+    receipt_encoded_bytes: String,
+    // proofReference: String,
+    // pcf: f64,
+    image_id_hex: String,
+    image_id_bytes: [u32; 8],
+    receipt_struct: Receipt,
+}
 
 const TOPIC_IN: &str = "shipments";
 const TOPIC_OUT: &str = "pcf-results";
 
-async fn process_payload(payload_str: &str) -> Option<ProductProof> {
+async fn process_payload(payload_str: &str) -> Option<ProofResponse> {
     // println!("Rohdaten der Nachricht: {}", payload_str);
     // Versuch direkt zu parsen (raw JSON)
     if let Ok(proof_response) = try_handle_raw_json(payload_str).await {
@@ -54,7 +58,7 @@ async fn process_payload(payload_str: &str) -> Option<ProductProof> {
     try_handle_raw_json(&inner_json_str).await.ok()
 }
 
-async fn try_handle_raw_json(shipments_json: &str) -> Result<ProductProof, ()> {
+async fn try_handle_raw_json(shipments_json: &str) -> Result<ProofResponse, ()> {
     match handle_kafka_message(shipments_json).await {
         Some(resp) => Ok(resp),
         None => Err(()),
@@ -110,7 +114,7 @@ async fn main() {
     }
 }
 
-async fn handle_kafka_message(shipments_json: &str) -> Option<ProductProof> {
+async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     println!("-------- Host: Received message --------");
 
         let mut de = serde_json::Deserializer::from_str(shipments_json);
@@ -193,12 +197,14 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProductProof> {
 
     println!("Handed over response ...\n");
 
-    let proof_respone = ProductProof {
-        productFootprintId: proving_document.productFootprint.id,
-        proofReceipt: encoded_receipt,
-        proofReference: "123".to_string(),
-        pcf: journal_output,
-        imageId: hex::encode(bytemuck::cast_slice(&GUEST_PROOFING_LOGIC_ID)),
+    let proof_respone = ProofResponse {
+        // productFootprintId: proving_document.productFootprint.id,
+        receipt_encoded_bytes: encoded_receipt,
+        // proofReference: "123".to_string(),
+        // pcf: journal_output,
+        image_id_hex: hex::encode(bytemuck::cast_slice(&GUEST_PROOFING_LOGIC_ID)),
+        image_id_bytes: GUEST_PROOFING_LOGIC_ID,
+        receipt_struct: receipt.clone(),
     };
 
     // Write Output to file (for debugging purposes)
