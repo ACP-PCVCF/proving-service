@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 methods = { path = "../methods" }
 proving_service_core = { path = "../core" }
-risc0-zkvm = { version = "^2.0.0" }
+risc0-zkvm = { version = "2.1.0" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = "1.0"
 
