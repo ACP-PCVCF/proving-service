@@ -1,14 +1,16 @@
 use methods::{GUEST_CODE_FOR_ZK_PROOF_ELF, GUEST_CODE_FOR_ZK_PROOF_ID};
-use risc0_zkvm::{default_prover, ExecutorEnv, Digest, Receipt, InnerReceipt};
+use risc0_zkvm::{default_prover, ExecutorEnv, Receipt, InnerReceipt};
 use serde::{Deserialize, Serialize};
 use serde_json::{to_string_pretty, from_str};
 use std::error::Error;
 use std::fs;
 use std::time::Instant; 
-use uuid::Uuid; 
+// use uuid::Uuid; 
 use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey, pkcs1v15::Pkcs1v15Sign};
 use sha2::{Sha256, Digest as Sha2DigestTrait};
 use base64::{engine::general_purpose, Engine as _};
+use hex;
+use bytemuck; 
 use const_oid::AssociatedOid;
 use pkcs1::ObjectIdentifier;
 use digest::{
@@ -77,12 +79,6 @@ struct CombinedInput {
     signatures: Vec<SignedSensorData>,
 }
 
-/* 
-#[derive(Serialize)]
-struct ReceiptExport {
-    image_id: String,
-    receipt: risc0_zkvm::Receipt,
-}*/
 
 #[derive(Serialize, Deserialize)]
 struct ReceiptExportJson {
@@ -99,7 +95,7 @@ pub struct GuestMetrics {
 
 #[derive(Serialize)]
 pub struct HostMetrics {
-    proving_time: u64, // in milliseconds
+    proving_time: u64,
     inputs_size: u64,
     proof_size: u64,
     #[cfg(target_os = "linux")] // Conditionally compile the field itself
@@ -121,7 +117,7 @@ impl HostMetrics {
             #[cfg(target_os = "linux")]
             cpu_cyclus_host: 0,
             #[cfg(not(target_os = "linux"))]
-            cpu_cyclus_host: None, // Initialize Option to None
+            cpu_cyclus_host: None, 
             guest_cycles: 0,
             prove_depth: 0,
             overhead_1: 0.0,
@@ -137,7 +133,7 @@ impl HostMetrics {
         self.proof_size = bincode::serialized_size(receipt).unwrap_or(0) as u64;
     }
 
-    pub fn input_size<T: Serialize>(&mut self, input: &T) { // Corrected: pass the actual input
+    pub fn input_size<T: Serialize>(&mut self, input: &T) {
         self.inputs_size = bincode::serialized_size(input).unwrap_or(0) as u64;
     }
 
@@ -146,7 +142,6 @@ impl HostMetrics {
     where
         F: FnOnce(),
     {
-        // Ensure perf_event::Builder is in scope
         use perf_event::Builder;
         let mut counter = Builder::new().build_hardware(perf_event::events::Hardware::CPU_CYCLES)?;
         counter.enable()?;
@@ -163,7 +158,7 @@ impl HostMetrics {
                 self.prove_depth = composite_seal.segments.len() as u64;
             }
             InnerReceipt::Groth16(_) => {
-                self.prove_depth = 1; // Typically 1 segment for a non-composite Groth16 proof
+                self.prove_depth = 1; 
             }
             // InnerReceipt::Succinct(_) => {
             //     self.prove_depth = 1;
@@ -350,24 +345,18 @@ fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &str)
 
 
 fn main() {
-
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::filter::EnvFilter::from_default_env())
         .init();
 
-    let run_id = Uuid::new_v4().to_string(); 
-    //let mut host_metrics = HostMetrics::new(format!("{}_host_metrics.csv", run_id), run_id.clone());
     let mut host_metrics = HostMetrics::new();
     
-    let activity_json =
-        fs::read_to_string("host/src/activity.json").expect("File was not readable!!!");
+    println!("-------- Host: Lade Inputs --------");
+    let activity_json = fs::read_to_string("host/src/activity.json").expect("Konnte activity.json nicht lesen");
+    let activities: Vec<Activity> = from_str(&activity_json).expect("Konnte activities nicht parsen");
 
-    let activities: Vec<Activity> = from_str(&activity_json).unwrap();
-
-    let signatures_json =
-        fs::read_to_string("host/src/og2.json").expect("Sensor file not readable");
-
-    let top_level_data_vec: Vec<OgJsonTopLevel> = from_str(&signatures_json).unwrap();
+    let signatures_json = fs::read_to_string("host/src/og2.json").expect("Konnte og2.json nicht lesen");
+    let top_level_data_vec: Vec<OgJsonTopLevel> = from_str(&signatures_json).expect("Konnte og2.json nicht parsen");
 
     let signatures: Vec<SignedSensorData> = if let Some(top_level_data) = top_level_data_vec.get(0) {
         top_level_data.signed_sensor_data_list.clone()
@@ -382,105 +371,80 @@ fn main() {
 
     let env = ExecutorEnv::builder()
         .write(&combined_input)
-        .expect("Failed to write combined input to ExecutorEnv")
+        .expect("Konnte CombinedInput nicht in die ExecutorEnv schreiben")
         .build()
-        .unwrap();
+        .expect("Konnte ExecutorEnv nicht bauen");
 
+    println!("-------- Host: Starte Proving Prozess --------");
     let prover = default_prover();
-
     let prove_start_time = Instant::now();
     let prove_info = prover.prove(env, GUEST_CODE_FOR_ZK_PROOF_ELF).unwrap();
     let prove_duration = prove_start_time.elapsed();
-
     let receipt = prove_info.receipt;
-    let (pcf_total, guest_metrics_from_journal, commitment, signed_sensor_data, sensorkey): (u32, GuestMetrics, String, String, String) = receipt.journal.decode().unwrap();
+    println!("-------- Host: Proving erfolgreich abgeschlossen --------");
 
-    println!("Guest Metrics from Journal: {:?}", guest_metrics_from_journal);
+    let (pcf_total, serialized_signatures, guest_metrics_from_journal): (f64, Vec<u8>, GuestMetrics) =
+        receipt.journal.decode().expect("Fehler beim Dekodieren des Journals. Falsches Format?");
 
     receipt.verify(GUEST_CODE_FOR_ZK_PROOF_ID).unwrap();
+    println!("✅ Receipt erfolgreich verifiziert!");
+    println!("Guest-Zyklen aus dem Journal: {}", guest_metrics_from_journal.risc_v_cycles);
 
-    if verify_signature(&commitment, &signed_sensor_data, &sensorkey) {
-        println!("Erfolgreich Signatur verifiziert");
-    } else {
-        eprintln!("Signatur: UNGÜLTIG");
+    #[derive(serde::Deserialize)]
+    struct SignatureForHost {
+        commitment: String,
+        signature: String,
+        pub_key: String,
     }
 
-    print!(
-        "The total CO2-Emission for the process pID-3423452 is {} kg CO2e",
-        { pcf_total }
-    );
+    let signature_data_list: Vec<SignatureForHost> = bincode::deserialize(&serialized_signatures)
+        .expect("Bincode-Deserialisierung der Signaturen fehlgeschlagen");
 
-
-    /*
-    let image_id_digest = Digest::from(GUEST_CODE_FOR_ZK_PROOF_ID);
-    let image_id_hex = image_id_digest.to_string();
-
-    let export = ReceiptExport {
-        image_id: image_id_hex,
-        receipt: receipt.clone(),
-    };
-
-    let receipt_json = to_string_pretty(&export).expect("JSON serialization failed");
-    
-    fs::write("receipt_output.json", receipt_json).expect("Couldn't write receipt_output.json");
-
-    println!("Receipt + Image ID gespeichert in: receipt_output.json");
-    */
-
-
-    let receipt_bytes = match bincode::serialize(&receipt) {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            eprintln!("Host: Failed to serialize receipt: {}", e);
-            return;
+    let mut all_signatures_valid = true;
+    if signature_data_list.is_empty() {
+        println!("Warnung: Keine Signaturen vom Guest erhalten.");
+        all_signatures_valid = false;
+    } else {
+        for (i, signature_data) in signature_data_list.iter().enumerate() {
+            println!("\n--- Verifiziere Signatur {}/{} ---", i + 1, signature_data_list.len());
+            if !verify_signature(&signature_data.commitment, &signature_data.signature, &signature_data.pub_key) {
+                all_signatures_valid = false; 
+            }
         }
-    };
+    }
+
+    if all_signatures_valid {
+        println!("\n✅ Alle Signaturen erfolgreich verifiziert!");
+    } else {
+        eprintln!("\n❌ Mindestens eine Signatur war ungültig.");
+    }
+
+    println!("\nGesamter Product Carbon Footprint: {} kg CO2e", pcf_total);
+
+    let receipt_bytes = bincode::serialize(&receipt).expect("Fehler beim Serialisieren des Receipts");
     let encoded_receipt = general_purpose::STANDARD.encode(receipt_bytes);
+    let image_id_hex = hex::encode(bytemuck::cast_slice(&GUEST_CODE_FOR_ZK_PROOF_ID));
 
-
-    //fs::write("receipt_output.bin", encoded_receipt).expect("Couldn't write receipt_output.bin");
-
-    let image_id_digest = Digest::from(GUEST_CODE_FOR_ZK_PROOF_ID);
-    let image_id_hex = image_id_digest.to_string();
-
-    let export2 = ReceiptExportJson {
+    let export_data = ReceiptExportJson {
         image_id: image_id_hex,
         receipt: encoded_receipt,
     };
 
-    let receipt_json = to_string_pretty(&export2).expect("JSON serialization failed");
-    
-    fs::write("receipt_output.json", receipt_json).expect("Couldn't write receipt_output.json");
-
-    println!("Receipt + Image ID gespeichert in: receipt_output.json");
-
-    //println!("Receipt + Image ID gespeichert in: receipt_output.bin");
-
-    if let Err(e) = verify::verify_receipt() {
-        eprintln!("❌ Fehler bei der Verifikation: {:?}", e);
-    }
+    let receipt_json = to_string_pretty(&export_data).expect("JSON-Serialisierung fehlgeschlagen");
+    fs::write("receipt_output.json", receipt_json).expect("Konnte receipt_output.json nicht schreiben");
+    println!("Receipt und Image ID gespeichert in: receipt_output.json");
 
     host_metrics.set_proving_time_ms((prove_duration.as_secs_f64() * 1000.0) as u64);
-    host_metrics.input_size(&combined_input); // Pass the actual input object
-    host_metrics.proof_size(&receipt); // Pass the receipt object
-
+    host_metrics.input_size(&combined_input);
+    host_metrics.proof_size(&receipt);
+    host_metrics.set_prove_depth(&receipt);
     host_metrics.guest_cycles(&guest_metrics_from_journal);
-
-    #[cfg(target_os = "linux")]
-    {
-
-        if let Err(e) = host_metrics.host_cpu_cycles(|| { }) {
-            eprintln!("Failed to get host CPU cycles: {}", e);
-        }
-    }
-
-    host_metrics.set_prove_depth(&receipt); // Calculate and set prove_depth
-    host_metrics.overhead_1(); // Call with no arguments
-    host_metrics.efficiency(&guest_metrics_from_journal); // Call with GuestMetrics
+    host_metrics.overhead_1();
+    host_metrics.efficiency(&guest_metrics_from_journal);
 
     if let Err(e) = host_metrics.metrics_write_csv() {
         eprintln!("Fehler beim Schreiben der CSV-Datei: {}", e);
     }
 
-    println!("Proof erfolgreich generiert und verifiziert!");
+    println!("\n-------- Host: Programm erfolgreich beendet --------");
 }

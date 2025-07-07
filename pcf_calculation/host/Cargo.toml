@@ -25,6 +25,7 @@ pem = "1.0"
 pkcs1 = "0.7"
 const-oid = "0.9"
 digest = "0.10"
+bytemuck = "1.23.1"
 
 
 [target.'cfg(target_os = "linux")'.dependencies]
