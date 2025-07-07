@@ -2,6 +2,8 @@
 // The ELF is used for proving and the ID is used for verification.
 use methods::{ GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID };
 
+use proving_service_core::product_footprint::ProductProof;
+use proving_service_core::sig_container::{self, SignatureContainer};
 use serde::{ Serialize };
 use rdkafka::consumer::{ Consumer, StreamConsumer };
 use rdkafka::producer::{ FutureProducer, FutureRecord };
@@ -12,29 +14,28 @@ use log::info;
 use std::fs::File;
 use std::io::Write;
 use proving_service_core::proofing_document::*;
-use risc0_zkvm::{ default_prover, ExecutorEnv };
+use risc0_zkvm::{ default_prover, ExecutorEnv, serde::{from_slice, to_vec}, };
 use env_helper::process_and_write_proofs;
 use base64::{ engine::general_purpose, Engine as _ };
-use crate::env_helper::process_and_write_signatures;
-use crate::sig_verifier::verify_signature;
-
+use serde_path_to_error::deserialize;
 mod env_helper;
 mod sig_verifier;
 
 #[derive(Serialize)]
 #[allow(non_snake_case)]
 struct ProofResponse {
-    productFootprintId: String,
-    proofReceipt: String,
-    proofReference: String,
-    pcf: f64,
-    imageId: String,
+    // productFootprintId: String,
+    // proofReceipt: String,
+    receipt: risc0_zkvm::Receipt,
+    // proofReference: String,
+    // pcf: f64,
+    image_id: String,
 }
 
 const TOPIC_IN: &str = "shipments";
 const TOPIC_OUT: &str = "pcf-results";
 
-async fn process_payload(payload_str: &str) -> Option<ProofResponse> {
+async fn process_payload(payload_str: &str) -> Option<ProductProof> {
     // println!("Rohdaten der Nachricht: {}", payload_str);
     // Versuch direkt zu parsen (raw JSON)
     if let Ok(proof_response) = try_handle_raw_json(payload_str).await {
@@ -53,7 +54,7 @@ async fn process_payload(payload_str: &str) -> Option<ProofResponse> {
     try_handle_raw_json(&inner_json_str).await.ok()
 }
 
-async fn try_handle_raw_json(shipments_json: &str) -> Result<ProofResponse, ()> {
+async fn try_handle_raw_json(shipments_json: &str) -> Result<ProductProof, ()> {
     match handle_kafka_message(shipments_json).await {
         Some(resp) => Ok(resp),
         None => Err(()),
@@ -72,6 +73,7 @@ async fn main() {
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.commit", "true")
         .set("auto.commit.interval.ms", "5000")
+        .set("message.max.bytes", "104857600")
         .create()
         .expect("Consumer creation failed");
 
@@ -109,14 +111,18 @@ async fn main() {
     }
 }
 
-async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
+async fn handle_kafka_message(shipments_json: &str) -> Option<ProductProof> {
     println!("-------- Host: Received message --------");
 
-    // Deserialize the JSON string into a ProvingDocument
-    let mut proving_document: ProofingDocument = match serde_json::from_str(shipments_json) {
+        let mut de = serde_json::Deserializer::from_str(shipments_json);
+    let mut proving_document: ProofingDocument = match deserialize(&mut de) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Host: Failed to deserialize message: {}", e);
+            eprintln!(
+                "Host: Failed to deserialize message at path '{}': {}",
+                e.path(),
+                e
+            );
             return None;
         }
     };
@@ -124,19 +130,19 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
     println!("Host: From Company: {}", proving_document.productFootprint.companyName);
 
     // Take away the proof extension from the proving document
-    let taken_proof_extension = proving_document.proof.take();
+    let proof_vec = proving_document.proof;
 
     // Take away the signed sensor data from the proving document
-    let taken_signed_sensor_data = proving_document.signedSensorData.take();
-
+    //let taken_signed_sensor_data = proving_document.signedSensorData.take();
+    proving_document.proof = Vec::new();
     // Build the ExecutorEnv
     let mut builder = ExecutorEnv::builder();
     let executor_env_builder = builder
         .write(&proving_document)
         .expect("Host: Failed to write proving_document to ExecutorEnv builder");
 
-    process_and_write_proofs(&taken_proof_extension, executor_env_builder);
-    process_and_write_signatures(&taken_signed_sensor_data, executor_env_builder);
+    process_and_write_proofs(&proof_vec, executor_env_builder);
+    //process_and_write_signatures(&taken_signed_sensor_data, executor_env_builder);
 
     let env = executor_env_builder.build().expect("Host: Failed to build ExecutorEnv!");
 
@@ -154,13 +160,21 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
 
     let receipt = prove_info.receipt;
 
-    let journal_output: f64 = match receipt.journal.decode() {
-        Ok(val) => val,
+    let (journal_output, serialized_sig_containers): (f64, Vec<u8>) = match receipt.journal.decode() {
+        Ok(data) => data,
         Err(e) => {
             eprintln!("Host: Failed to decode journal: {}", e);
             return None;
         }
     };
+
+    // let sig_containers: Vec<SignatureContainer> = match bincode::deserialize(&serialized_sig_containers) {
+    //     Ok(containers) => containers,
+    //     Err(e) => {
+    //         eprintln!("Host: Failed to deserialize signature containers: {}", e);
+    //         return None;
+    //     }
+    // };
 
     if let Err(e) = receipt.verify(GUEST_PROOFING_LOGIC_ID) {
         eprintln!("Host: Receipt verification failed: {}", e);
@@ -174,25 +188,24 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
             return None;
         }
     };
-
     let encoded_receipt = general_purpose::STANDARD.encode(receipt_bytes);
 
     println!("Journal output: {}", journal_output);
 
     println!("Handed over response ...\n");
 
-    let proof_respone = ProofResponse {
+    let proof_respone = ProductProof {
         productFootprintId: proving_document.productFootprint.id,
         proofReceipt: encoded_receipt,
         proofReference: "123".to_string(),
         pcf: journal_output,
-        imageId: format!("{:?}", GUEST_PROOFING_LOGIC_ID),
+        imageId: hex::encode(bytemuck::cast_slice(&GUEST_PROOFING_LOGIC_ID)),
     };
 
     // Write Output to file (for debugging purposes)
-    // let json_string = serde_json::to_string_pretty(&proof_respone).ok()?;
-    // let mut file = File::create("output.json").ok()?;
-    // file.write_all(&json_string.as_bytes()).ok()?;
+    let json_string = serde_json::to_string_pretty(&proof_respone).ok()?;
+    let mut file = File::create("output.json").ok()?;
+    file.write_all(&json_string.as_bytes()).ok()?;
 
     Some(proof_respone)
 }
@@ -201,15 +214,16 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProofResponse> {
 mod tests {
     use super::handle_kafka_message;
     use crate::{ ProofResponse };
+    use proving_service_core::product_footprint::ProductProof;
     use tokio;
     use std::fs;
 
     #[tokio::test]
     async fn smoke_test_with_realistic_shipments_json() -> Result<(), Box<dyn std::error::Error>> {
-        let json_content = fs::read_to_string("src/shipment_3.json")?;
+        let json_content = fs::read_to_string("src/shipment_4.json")?;
 
         // Call kafka handler
-        let resp: ProofResponse = handle_kafka_message(&json_content).await.expect(
+        let resp: ProductProof = handle_kafka_message(&json_content).await.expect(
             "kafka_handler_failed"
         ); /*
         assert!(!resp.proof_receipt.is_empty(), "receipt must be generated");
