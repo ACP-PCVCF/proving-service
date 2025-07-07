@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use risc0_zkvm::Receipt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

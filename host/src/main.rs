@@ -21,16 +21,16 @@ use serde_path_to_error::deserialize;
 mod env_helper;
 mod sig_verifier;
 
-// #[derive(Serialize)]
-// #[allow(non_snake_case)]
-// struct ProofResponse {
-//     productFootprintId: String,
-//     // proofReceipt: String,
-//     proofReceipt: risc0_zkvm::Receipt,
-//     proofReference: String,
-//     pcf: f64,
-//     imageId: String,
-// }
+#[derive(Serialize)]
+#[allow(non_snake_case)]
+struct ProofResponse {
+    // productFootprintId: String,
+    // proofReceipt: String,
+    receipt: risc0_zkvm::Receipt,
+    // proofReference: String,
+    // pcf: f64,
+    image_id: String,
+}
 
 const TOPIC_IN: &str = "shipments";
 const TOPIC_OUT: &str = "pcf-results";
@@ -73,6 +73,7 @@ async fn main() {
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.commit", "true")
         .set("auto.commit.interval.ms", "5000")
+        .set("message.max.bytes", "104857600")
         .create()
         .expect("Consumer creation failed");
 
@@ -209,25 +210,26 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProductProof> {
     Some(proof_respone)
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::handle_kafka_message;
-//     use crate::{ ProofResponse };
-//     use tokio;
-//     use std::fs;
+#[cfg(test)]
+mod tests {
+    use super::handle_kafka_message;
+    use crate::{ ProofResponse };
+    use proving_service_core::product_footprint::ProductProof;
+    use tokio;
+    use std::fs;
 
-//     #[tokio::test]
-//     async fn smoke_test_with_realistic_shipments_json() -> Result<(), Box<dyn std::error::Error>> {
-//         let json_content = fs::read_to_string("src/shipment_3.json")?;
+    #[tokio::test]
+    async fn smoke_test_with_realistic_shipments_json() -> Result<(), Box<dyn std::error::Error>> {
+        let json_content = fs::read_to_string("src/shipment_4.json")?;
 
-//         // Call kafka handler
-//         let resp: ProofResponse = handle_kafka_message(&json_content).await.expect(
-//             "kafka_handler_failed"
-//         ); /*
-//         assert!(!resp.proof_receipt.is_empty(), "receipt must be generated");
-//         assert!(resp.journal_output.is_finite(), "journal_output must be numeric");
-//         assert!(!resp.image_id.is_empty(), "image_id must be present");
-//         println!("{}", resp.journal_output);*/
-//         Ok(())
-//     }
-// }
+        // Call kafka handler
+        let resp: ProductProof = handle_kafka_message(&json_content).await.expect(
+            "kafka_handler_failed"
+        ); /*
+        assert!(!resp.proof_receipt.is_empty(), "receipt must be generated");
+        assert!(resp.journal_output.is_finite(), "journal_output must be numeric");
+        assert!(!resp.image_id.is_empty(), "image_id must be present");
+        println!("{}", resp.journal_output);*/
+        Ok(())
+    }
+}

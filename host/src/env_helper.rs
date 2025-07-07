@@ -1,6 +1,7 @@
 use proving_service_core::product_footprint::{ProductProof, ProofExtension};
 use proving_service_core::proofing_document::TceSensorData;
 use proving_service_core::sig_container::SignatureContainer;
+use risc0_zkvm::InnerReceipt;
 use risc0_zkvm::{ Receipt, ExecutorEnvBuilder, sha::Digest };
 use base64::engine::general_purpose;
 use base64::Engine;
@@ -42,13 +43,55 @@ pub fn process_and_write_proofs<'a>(
             let image_id_bytes: [u8; 32] = image_id_vec.try_into().expect("Image ID is not 32 bytes long");
 
             let image_id = Digest::from(image_id_bytes);
+            
+            // debug
+            // let receipt = pcf_proof.receipt.clone();
+            // let image_id = Digest::from(pcf_proof.image_id);
 
+    // println!("WSL/Debian Journal (HEX): {}", hex::encode(&receipt.journal));
+    // match &receipt.inner {
+    //     InnerReceipt::Composite(composite_receipt) => {
+    //         for (i, segment) in composite_receipt.segments.iter().enumerate() {
+    //             let mut seal_bytes = Vec::new();
+    //             // Die `seal` hier ist ein &[u32], das in Bytes umgewandelt werden muss.
+    //             // RISC-V ist Little-Endian, daher `to_le_bytes()`.
+    //             for &word in segment.seal.iter() {
+    //                 seal_bytes.extend_from_slice(&word.to_le_bytes());
+    //             }
+    //             println!("WSL/Debian Segment {} Seal (HEX): {}", i, hex::encode(&seal_bytes));
+    //         }
+    //     }
+    //     InnerReceipt::Succinct(verifier_receipt) => {
+    //         // Dies ist der Fall für ein einzelnes (nicht-komposites) Receipt.
+    //         // Falls du eine ältere Version hast oder nicht-komposite Proofs erstellst.
+    //         let mut seal_bytes = Vec::new();
+    //         for &word in verifier_receipt.seal.iter() {
+    //             seal_bytes.extend_from_slice(&word.to_le_bytes());
+    //         }
+    //         println!("WSL/Debian Succinct Seal (HEX): {}", hex::encode(&seal_bytes));
+    //     }
+    //     InnerReceipt::Groth16(groth16_receipt) => todo!(),
+    //     InnerReceipt::Fake(fake_receipt) => todo!(),
+    //     _ => todo!(),
+    // }
+    // println!("WSL/Debian Image ID (HEX): {}", hex::encode(bytemuck::cast_slice(&image_id_bytes)));
+
+
+            if let Err(e) = receipt.verify(image_id) {
+                eprintln!("Host: Receipt verification failed: {}", e);
+                return;
+            }
             // Clone Journal
             let journal = receipt.journal.clone();
 
             // Get journal data
-            let _pcf: u64 = journal.decode().unwrap();
-            let serialized_sig_containers: Vec<u8> = journal.decode().unwrap();
+                        let (journal_output, serialized_sig_containers): (f64, Vec<u8>) = match receipt.journal.decode() {
+                Ok(data) => data,
+                Err(e) => {
+                    eprintln!("Host: Failed to decode journal: {}", e);
+                    return;
+                }
+            };    
 
             let sig_containers = bincode::deserialize::<Vec<SignatureContainer>>(
                 &serialized_sig_containers
