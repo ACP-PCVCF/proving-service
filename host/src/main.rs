@@ -282,7 +282,7 @@ mod tests {
         let mut response: Option<ProductProof> = None;
 
         for _ in 0..n {
-            let mut proving_document = generator.generate_random_proving_document(3, 2).clone();
+            let mut proving_document = generator.generate_proving_document_random().clone();
             if let Some(ref resp) = response {
                 proving_document.proof.push(resp.clone());
             }

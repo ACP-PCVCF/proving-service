@@ -179,7 +179,13 @@ impl DocumentGenerator {
         }
     }
 
-    pub fn generate_random_proving_document(&mut self, n: u32, m: u32) -> ProofingDocument {
+    pub fn generate_proving_document_random(&mut self) -> ProofingDocument {
+        let n = self.rng.gen_range(1..4);
+        let m = std::cmp::max(0, n - self.rng.gen_range(0..2));
+        self.generate_proving_document(m, n)
+    }
+
+    pub fn generate_proving_document(&mut self, n: u32, m: u32) -> ProofingDocument {
         let mut rng = OsRng;
         let bits = 2048;
 
