@@ -1,5 +1,4 @@
 use base64::{ engine::general_purpose, Engine as _ };
-use proving_service_core::proofing_document::TceSensorData;
 use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::{Sha256, Digest as Sha2DigestTrait};
@@ -149,4 +148,13 @@ pub fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &
             false
         }
     }
+}
+
+pub fn hash(data: &str) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    Update::update(&mut hasher, data.as_bytes());
+    let computed_hash = hasher.finalize();
+    let mut hash_array = [0u8; 32];
+    hash_array.copy_from_slice(&computed_hash);
+    hash_array
 }

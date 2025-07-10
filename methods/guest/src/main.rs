@@ -2,7 +2,6 @@ extern crate alloc;
 use bincode;
 use alloc::{ vec::Vec, string::String, format };
 use proving_service_core::proof_container::ProofContainer;
-use proving_service_core::sig_container::GuestCommunication;
 use proving_service_core::sig_container::SignatureContainer;
 use risc0_zkvm::guest::env;
 use risc0_zkvm::Journal;
@@ -44,28 +43,7 @@ fn process_proof_containers(
     current_transport_pcf
 }
 
-// fn verify_commitment(
-//     sig_containers: &[SignatureContainer],
-//     tceId: String,
-// ) {
-//     for sig_container in sig_containers {
-//         if sig_container.tceId == *tceId {
-//             env::log(&format!("Sensor Data: {}", sig_container.sensorData));
-//             let concat = format!("{}{}", sig_container.sensorData, sig_container.salt);
-//             assert!(hash(&concat) == sig_container.commitment, "Commitment matcht nicht den hash vom sensor data and salt");
-//         }
-//     }
-// }
-
-// fn check_signature(
-//     tceId: String,
-// ) {
-
-// }
-
 fn main() {
-    let start = env::cycle_count();
-
     // Initialize
     env::log("Guest: Starting the guest program...");
     let mut transport_pcf: f64 = 0.0;
@@ -75,11 +53,8 @@ fn main() {
     let mut sig_containers: Vec<SignatureContainer> = Vec::new();
     let product_footprint: ProofingDocument = env::read();
     let serialized_proof_containers: Vec<u8> = env::read();
-    // let serialized_sig_containers: Vec<u8> = env::read();
     let proof_containers: Vec<ProofContainer> = bincode::deserialize(&serialized_proof_containers)
         .expect("Guest: Failed to deserialize proof_containers");
-    // let sig_containers: Vec<SignatureContainer> = bincode::deserialize(&serialized_sig_containers)
-    //     .expect("Guest: Failed to deserialize proof_containers");
 
     // Verify previous proofs and add pcf value 
     transport_pcf = process_proof_containers(&proof_containers, transport_pcf);
@@ -94,12 +69,9 @@ fn main() {
                 let emission_factor: f64 = emission_factor_toc(
                     &product_footprint.tocData,
                     tce.tocId.clone().unwrap()
-                );
+                );       
 
-                // Verify commitment
-                // verify_commitment(&sig_containers, tce.tceId.clone());               
-
-                let emissions: f64 = tce.mass * emission_factor * distance.actual; // TODO: Add here a correct emission factor later
+                let emissions: f64 = tce.mass * emission_factor * distance.actual;
 
                 if let Some(signed_sensor_data_list) = &product_footprint.signedSensorData {
                     for signed_sensor_data in signed_sensor_data_list {
@@ -115,10 +87,9 @@ fn main() {
                     }
                 }
 
-                println!("Emissions from TOC {}: {} kg CO2e", tce.tceId, emissions);
                 transport_pcf += emissions;
             } else {
-                println!("Distance is missing");
+                env::log("Distance is missing"); 
             }
         }
 
@@ -127,8 +98,7 @@ fn main() {
                 &product_footprint.hocData,
                 tce.hocId.clone().unwrap()
             );
-            let emissions: f64 = tce.mass * emission_factor; //TODO: Add here the correct emission factor later
-            println!("Emissions form HOC {}: {} kg CO2e", tce.tceId, emissions);
+            let emissions: f64 = tce.mass * emission_factor;
             transport_pcf += emissions;
         }
     }
@@ -160,18 +130,8 @@ fn main() {
     }
 
     env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
-    // let comm: GuestCommunication {
-    //     pcf_value: transport_pcf,
-    //     encoded_sig_containers: general_purpose::STANDARD.encode(
-    //         bincode::serialize(&sig_containers)
-    //             .expect("Failed to serialize sig_containers")
-    //     ),
-    // }
     env::commit(&transport_pcf);
     let serialized_sig_containers: Vec<u8> = bincode::serialize(&sig_containers)
         .expect("Failed to serialize sig_containers");
-    let encoded_sig_containers = general_purpose::STANDARD.encode(&serialized_sig_containers);
     env::commit(&serialized_sig_containers);
-    let end = env::cycle_count();
-    env::log(&format!("End of guest programm. Cycles: {}", end - start));
 }

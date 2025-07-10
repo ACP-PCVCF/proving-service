@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use crate::product_footprint::ProductProof;
 
 use super::hoc_toc_data::{HocData, TocData};
-use super::product_footprint::{ProductFootprint, ProofExtension, Distance};
+use super::product_footprint::{ProductFootprint, Distance};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TceSensorData {
     pub tceId: String,
     pub sensorkey: String,
@@ -16,7 +16,7 @@ pub struct TceSensorData {
     pub salt: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProofingDocument {
     pub productFootprint: ProductFootprint,
     pub tocData: Vec<TocData>,
