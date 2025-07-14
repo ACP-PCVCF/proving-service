@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 
-use risc0_zkvm::Receipt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -69,7 +68,7 @@ fn default_spec_version() -> String {
     "2.0.0".to_string()
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProductFootprint {
     pub id: String,
     #[serde(default = "default_spec_version")]
