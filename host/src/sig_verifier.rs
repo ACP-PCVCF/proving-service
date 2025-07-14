@@ -1,9 +1,13 @@
 use base64::{ engine::general_purpose, Engine as _ };
+use rand::rngs::OsRng;
+use rsa::pkcs8::spki;
+use rsa::RsaPrivateKey;
 use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
+use spki::EncodePublicKey; // Import only EncodePublicKey for to_public_key_pem
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use sha2::{Sha256, Digest as Sha2DigestTrait};
 use const_oid::AssociatedOid;
-use pkcs1::ObjectIdentifier;
+use pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey as _, ObjectIdentifier};
 use digest::{
     self,
     Digest as DigestTrait,
@@ -157,4 +161,29 @@ pub fn hash(data: &str) -> [u8; 32] {
     let mut hash_array = [0u8; 32];
     hash_array.copy_from_slice(&computed_hash);
     hash_array
+}
+
+pub fn generate_key_pair() -> Result<(String, String), Box<dyn std::error::Error>> {
+    let mut rng = OsRng;
+    let bits = 2048; // Empfohlene Bitlänge für RSA
+
+    let private_key = RsaPrivateKey::new(&mut rng, bits)?;
+    let public_key = RsaPublicKey::from(&private_key);
+
+    let private_key_pem: String = private_key.to_pkcs1_pem(pkcs1::LineEnding::LF)?.to_string();
+    let public_key_pem: String = public_key.to_public_key_pem(pkcs1::LineEnding::LF)?;
+
+    Ok((private_key_pem, public_key_pem))
+}
+
+pub fn sign_data(data: &str, private_key_pem: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let private_key = RsaPrivateKey::from_pkcs1_pem(private_key_pem)?;
+    let mut hasher = Sha256::new();
+    Update::update(&mut hasher, data.as_bytes());
+    let digest_val = hasher.finalize();
+
+    let padding = Pkcs1v15Sign::new::<Sha256WithOid>();
+    let signature = private_key.sign(padding, &digest_val)?;
+
+    Ok(general_purpose::STANDARD.encode(signature))
 }

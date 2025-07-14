@@ -66,7 +66,7 @@ async fn main() {
         .set("auto.offset.reset", "earliest")
         .set("enable.auto.commit", "true")
         .set("auto.commit.interval.ms", "5000")
-        .set("message.max.bytes", "104857600")
+        .set("message.max.bytes", "52428800")
         .create()
         .expect("Consumer creation failed");
 
@@ -75,6 +75,7 @@ async fn main() {
     let producer: FutureProducer = ClientConfig::new()
         .set("bootstrap.servers", &brokers)
         .set("security.protocol", "PLAINTEXT")
+        .set("message.max.bytes", "52428800")
         .create()
         .expect("Producer creation failed");
 
@@ -105,6 +106,9 @@ async fn main_proving_logic(
     mut proving_document: ProofingDocument,
     _collector: Option<&mut RunDataCollector>,
 ) -> Option<ProductProof> {
+    #[cfg(test)] // Benchmarking
+    let total_start_time = Instant::now();
+
     println!(
         "Received proving document with ID: {}",
         proving_document.productFootprint.id
@@ -135,7 +139,7 @@ async fn main_proving_logic(
     println!("ELF size: {}", GUEST_PROOFING_LOGIC_ELF.len());
 
     #[cfg(test)] // Benchmarking
-    let start_time = Instant::now();
+    let proof_start_time = Instant::now();
 
     let prove_info = match prover.prove(env, GUEST_PROOFING_LOGIC_ELF) {
         Ok(info) => info,
@@ -146,13 +150,7 @@ async fn main_proving_logic(
     };
 
     #[cfg(test)] // Benchmarking
-    {
-        let duration = start_time.elapsed();
-        _collector
-            .unwrap()
-            .set_time(duration.as_secs())
-            .set_cycles(&prove_info.stats);
-    }
+    let duration = proof_start_time.elapsed();
 
     let receipt = prove_info.receipt;
 
@@ -201,6 +199,16 @@ async fn main_proving_logic(
         file.write_all(&json_string.as_bytes()).ok()?;
     }
 
+    #[cfg(test)] // Benchmarking
+    {
+        let total_duration = total_start_time.elapsed();
+        _collector
+            .unwrap()
+            .set_total_time(total_duration.as_secs())
+            .set_proof_time(duration.as_secs())
+            .set_cycles(&prove_info.stats);
+    }
+
     Some(proof_respone)
 }
 
@@ -236,19 +244,75 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProductProof> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{benchmarking::{DocumentGenerator, RunDataCollector}, main_proving_logic, parse_proving_document};
+    use crate::{
+        benchmarking::{create_numbered_file, DocumentGenerator, RunDataCollector},
+        main_proving_logic, parse_proving_document,
+    };
 
     use super::handle_kafka_message;
-    use proving_service_core::product_footprint::ProductProof;
-    use std::{env, fs};
+    use proving_service_core::{
+        product_footprint::ProductProof, proofing_document::ProofingDocument,
+    };
+    use rand::Rng;
+    use rdkafka::{consumer::{Consumer as _, StreamConsumer}, producer::{FutureProducer, FutureRecord}, ClientConfig, Message as _};
+    use std::{
+        env,
+        fs::{self, File},
+        io::Write, time::Duration,
+    };
     use tokio;
 
-    const DEV_MODE: &str = "true";
+    const DEV_MODE: &str = "false";
+
+    #[tokio::test]
+    async fn kafka_service() {
+        const TOPIC_OUT: &str = "pcf-results";
+        const TOPIC_IN: &str = "shipments";
+        let brokers = std::env::var("KAFKA_BROKER").unwrap_or_else(|_| "localhost:9092".to_string());
+        let consumer: StreamConsumer = ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("security.protocol", "PLAINTEXT")
+            .set("group.id", "risc0-pcf-kafka-group")
+            .set("auto.offset.reset", "earliest")
+            .set("enable.auto.commit", "true")
+            .set("auto.commit.interval.ms", "5000")
+            .set("message.max.bytes", "104857600")
+            .create()
+            .expect("Consumer creation failed");
+
+        consumer.subscribe(&[TOPIC_OUT]).unwrap();
+
+        let producer: FutureProducer = ClientConfig::new()
+            .set("bootstrap.servers", &brokers)
+            .set("security.protocol", "PLAINTEXT")
+            .set("message.max.bytes", "104857600")
+            .create()
+            .expect("Producer creation failed");
+        let json_content = fs::read_to_string("../benchmarks/documents/comp_document_21.json");
+        let binding = json_content.unwrap();
+        let record = FutureRecord::to(TOPIC_OUT)
+                            .payload(&binding)
+                            .key("some-key");
+        let _ = producer.send(record, Duration::from_secs(10)).await;
+
+        loop {
+        match consumer.recv().await {
+            Ok(message) => match message.payload_view::<str>() {
+                Some(Ok(payload_str)) => {
+                    println!("{}", payload_str);
+                }
+                Some(Err(e)) => eprintln!("Payload UTF-8 error: {}", e),
+                None => eprintln!("No payload"),
+            },
+            Err(e) => eprintln!("Kafka error receiving message: {:?}", e),
+        }
+    }
+    }
 
     #[tokio::test]
     // Test: 3 TCEs; 1 Sig; 0 proofs
     async fn test_3_1_0() -> Result<(), Box<dyn std::error::Error>> {
-        let json_content = fs::read_to_string("json-examples/test_3_1_0.json")?;
+        let json_content = fs::read_to_string("../benchmarks/documents/comp_document_5.json")?;
 
         // Call kafka handler
         let _resp: ProductProof = handle_kafka_message(&json_content)
@@ -275,16 +339,34 @@ mod tests {
     #[tokio::test]
     async fn bench_composition() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
-        let n: u32 = 2;
+        let n: u32 = 20;
 
         let mut generator = DocumentGenerator::new();
         let mut collector = RunDataCollector::new("bench_composition");
         let mut response: Option<ProductProof> = None;
 
         for _ in 0..n {
-            let mut proving_document = generator.generate_proving_document_random().clone();
+            let mut proving_document: ProofingDocument;
+
+            proving_document = generator.generate_proving_document_random().clone();
             if let Some(ref resp) = response {
                 proving_document.proof.push(resp.clone());
+            }
+
+            match create_numbered_file(
+                std::path::Path::new("../benchmarks/documents/comp_document"),
+                "json",
+            ) {
+                Ok(path) => {
+                    let mut file = File::create(&path)?;
+                    if let Some(json_string) = serde_json::to_string_pretty(&proving_document).ok()
+                    {
+                        file.write_all(json_string.as_bytes()).ok();
+                    }
+                }
+                Err(_) => {
+                    eprintln!("Failed to create proving document");
+                }
             }
 
             collector.start_new_run().set_input(&proving_document);
@@ -294,6 +376,7 @@ mod tests {
                     .expect("Failed main logic"),
             );
             collector.set_output(response.as_ref().unwrap());
+            collector.print_current_run();
         }
         collector
             .write_to_csv()
@@ -304,48 +387,145 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn bench_proofaggregation() -> Result<(), Box<dyn std::error::Error>> {
-        let json_content = fs::read_to_string("json-examples/test_3_1_1.json")?;
-        let mut proving_document = parse_proving_document(&json_content)
-            .await
-            .expect("Failed to parse proving document");
 
-        for _ in 0..9 {
-            proving_document
-                .proof
-                .push(proving_document.proof[0].clone())
+        let mut rng = rand::thread_rng();
+        env::set_var("RISC0_DEV_MODE", DEV_MODE);
+        let n: u32 = 20;
+
+
+        let mut generator = DocumentGenerator::new();
+        let mut collector = RunDataCollector::new("bench_proof_aggregation");
+        let mut response: Option<ProductProof> = None;
+
+        let mut tocs = 0;
+        let mut hocs = 0;
+
+        // let mut proving_document = generator.generate_proving_document(0, 0);
+
+        for i in 0..20 {
+
+            let n: u32 = rng.gen_range(1..5);
+            let m: u32 = n.saturating_sub(rng.gen_range(0..3));
+            tocs = tocs + n;
+            hocs = hocs + m;
+            // let path = format!("../benchmarks/documents/comp_document_{}.json", i + 2);
+            // let json_content = fs::read_to_string(path)?;
+            // let mut proving_document = parse_proving_document(&json_content)
+            //     .await
+            //     .expect("Failed to parse proving document");
+
+            // proving_document.proof.clear();
+            // collector.start_new_run().set_input(&proving_document);
+            // response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+            //     .await;
+            // collector.set_output(response.as_ref().unwrap());
+            // collector.print_current_run();
         }
 
-        let _response = main_proving_logic(proving_document.clone(), None)
-            .await
-            .expect("Failed main logic");
+        let mut proving_document = generator.generate_proving_document(tocs, hocs);
+        collector.start_new_run().set_input(&proving_document);
+        response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+            .await;
+        collector.set_output(response.as_ref().unwrap());
+        collector.print_current_run();
 
+        collector
+            .write_to_csv()
+            .expect("Failed to write metrics to CSV");
         Ok(())
+
+
+        // let json_content = fs::read_to_string("json-examples/test_3_1_1.json")?;
+        // let mut proving_document = parse_proving_document(&json_content)
+        //     .await
+        //     .expect("Failed to parse proving document");
+
+        // for _ in 0..9 {
+        //     proving_document
+        //         .proof
+        //         .push(proving_document.proof[0].clone())
+        // }
+
+        // let _response = main_proving_logic(proving_document.clone(), None)
+        //     .await
+        //     .expect("Failed main logic");
+
+        // Ok(())
     }
 
     #[ignore]
     #[tokio::test]
     async fn bench_aggregation() -> Result<(), Box<dyn std::error::Error>> {
-        let json_content = fs::read_to_string("json-examples/test_3_1_0.json")?;
-        let mut proving_document = parse_proving_document(&json_content)
-            .await
-            .expect("Failed to parse proving document");
+        env::set_var("RISC0_DEV_MODE", DEV_MODE);
+        let n: u32 = 10;
 
-        let tces = proving_document.productFootprint.extensions[0]
-            .data
-            .tces
-            .clone();
+        let mut collector = RunDataCollector::new("bench_aggregation");
+        let mut response: Option<ProductProof> = None;
+        let mut generator = DocumentGenerator::new();
+        let mut proofs : Vec<ProductProof> = Vec::new();
+        //let mut proving_document;
 
-        for _ in 0..9 {
-            proving_document.productFootprint.extensions[0]
-                .data
-                .tces
-                .extend(tces.clone());
+        let mut blank_proving_document = generator.generate_proving_document(0, 0);
+        let mut docs: Vec<ProofingDocument> = Vec::new();
+        docs.push(generator.generate_proving_document(4, 2));
+        docs.push(generator.generate_proving_document(2, 1));
+        docs.push(generator.generate_proving_document(1, 1));
+        docs.push(generator.generate_proving_document(4, 2));
+        docs.push(generator.generate_proving_document(1, 0));
+        docs.push(generator.generate_proving_document(1, 1));
+        docs.push(generator.generate_proving_document(4, 2));
+        docs.push(generator.generate_proving_document(2, 0));
+        docs.push(generator.generate_proving_document(1, 0));
+        docs.push(generator.generate_proving_document(4, 4));
+        docs.push(generator.generate_proving_document(4, 3));
+        docs.push(generator.generate_proving_document(2, 0));
+        docs.push(generator.generate_proving_document(4, 0));
+        docs.push(generator.generate_proving_document(2, 0));
+        docs.push(generator.generate_proving_document(1, 0));
+        docs.push(generator.generate_proving_document(3, 1));
+        docs.push(generator.generate_proving_document(2, 2));
+        docs.push(generator.generate_proving_document(1, 1));
+        docs.push(generator.generate_proving_document(1, 1));
+        docs.push(generator.generate_proving_document(3, 2));
+
+        for i in 0..docs.len() {
+            let proving_document = &docs[i];
+            collector.start_new_run().set_input(&proving_document);
+            response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+                .await;
+            collector.set_output(response.as_ref().unwrap());
+            collector.print_current_run();
+            blank_proving_document.proof.push(response.unwrap().clone());
+        }
+        
+
+        match create_numbered_file(
+            std::path::Path::new("../benchmarks/documents/aggr_document"),
+            "json",
+        ) {
+            Ok(path) => {
+                let mut file = File::create(&path)?;
+                if let Some(json_string) = serde_json::to_string_pretty(&blank_proving_document).ok() {
+                    file.write_all(json_string.as_bytes()).ok();
+                }
+            }
+            Err(_) => {
+                eprintln!("Failed to create proving document");
+            }
         }
 
-        let _response = main_proving_logic(proving_document.clone(), None)
-            .await
-            .expect("Failed main logic");
+        collector.start_new_run().set_input(&blank_proving_document);
+        response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
+            .await;
+        collector.set_output(response.as_ref().unwrap());
+        collector.print_current_run();
+        proofs.push(response.unwrap().clone());
 
+        collector
+            .write_to_csv()
+            .expect("Failed to write metrics to CSV");
         Ok(())
     }
+
+    
 }

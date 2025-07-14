@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
-use crate::sig_verifier::hash;
+use crate::sig_verifier::{generate_key_pair, hash, sign_data};
 use base64::engine::general_purpose;
 use base64::Engine as _;
-use pkcs1::{EncodeRsaPublicKey as _, LineEnding};
 use proving_service_core::hoc_toc_data::{HocData, TocData, TransportMode};
 use proving_service_core::product_footprint::{self, Distance, ProductFootprint, TCE};
 use proving_service_core::proofing_document::{SensorData, TceSensorData};
@@ -11,7 +10,6 @@ use proving_service_core::{product_footprint::ProductProof, proofing_document::P
 use rand::rngs::{OsRng, ThreadRng};
 use rand::{Rng as _, RngCore as _};
 use risc0_zkvm::SessionStats;
-use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use std::error::Error;
 use std::fs::{self, File, OpenOptions};
 use std::io;
@@ -20,7 +18,8 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, serde::Serialize)]
 struct RunMetrics {
     run_id: u64,
-    time: u64,
+    proof_time: u64,
+    total_time: u64,
     input_size: u64,
     output_size: u64,
     paging_cycles: u64,
@@ -46,7 +45,8 @@ impl RunDataCollector {
         let run_id = self.data.len() as u64 + 1;
         self.data.push(RunMetrics {
             run_id,
-            time: 0,
+            proof_time: 0,
+            total_time: 0,
             input_size: 0,
             output_size: 0,
             paging_cycles: 0,
@@ -57,8 +57,17 @@ impl RunDataCollector {
         self
     }
 
-    pub fn set_time(&mut self, elapsed: u64) -> &mut RunDataCollector {
-        self.data.last_mut().map(|metrics| metrics.time = elapsed);
+    pub fn set_proof_time(&mut self, elapsed: u64) -> &mut RunDataCollector {
+        self.data
+            .last_mut()
+            .map(|metrics| metrics.proof_time = elapsed);
+        self
+    }
+
+    pub fn set_total_time(&mut self, elapsed: u64) -> &mut RunDataCollector {
+        self.data
+            .last_mut()
+            .map(|metrics| metrics.total_time = elapsed);
         self
     }
 
@@ -92,8 +101,12 @@ impl RunDataCollector {
         self
     }
 
+    pub fn print_current_run(&mut self) {
+        println!("[METRICS]: {:?}\n", self.data.last());
+    }
+
     pub fn write_to_csv(&self) -> Result<(), Box<dyn Error>> {
-        let output_dir = Path::new("benchmarks");
+        let output_dir = Path::new("../benchmarks");
         let base_file_name = Path::new(&self.test_name);
         let extension = "csv";
 
@@ -107,7 +120,8 @@ impl RunDataCollector {
 
                 wtr.write_record(&[
                     "run_id",
-                    "time",
+                    "proof_time",
+                    "total_time",
                     "input_size",
                     "output_size",
                     "paging_cycles",
@@ -119,7 +133,8 @@ impl RunDataCollector {
                 for metrics in &self.data {
                     wtr.serialize((
                         metrics.run_id,
-                        metrics.time,
+                        metrics.proof_time,
+                        metrics.total_time,
                         metrics.input_size,
                         metrics.output_size,
                         metrics.paging_cycles,
@@ -180,14 +195,14 @@ impl DocumentGenerator {
     }
 
     pub fn generate_proving_document_random(&mut self) -> ProofingDocument {
-        let n = self.rng.gen_range(1..4);
-        let m = std::cmp::max(0, n - self.rng.gen_range(0..2));
-        self.generate_proving_document(m, n)
+        let n: u32 = self.rng.gen_range(1..5);
+        let m: u32 = n.saturating_sub(self.rng.gen_range(0..3));
+        println!("Generating document with n: {}, m: {}", n, m);
+        self.generate_proving_document(n, m)
     }
 
     pub fn generate_proving_document(&mut self, n: u32, m: u32) -> ProofingDocument {
         let mut rng = OsRng;
-        let bits = 2048;
 
         let shipment_id = self.rng.gen_range(0..10000).to_string();
         let mass: f64 = self.rng.gen_range(10.0..1000.0);
@@ -221,10 +236,6 @@ impl DocumentGenerator {
                 distance: distance.clone(),
             };
 
-            let private_key = RsaPrivateKey::new(&mut rng, bits)
-                .expect("Fehler beim Erstellen des RSA Privatschlüssels");
-            let public_key = RsaPublicKey::from(&private_key);
-
             let mut salt = vec![0u8; 32];
             rng.fill_bytes(&mut salt);
             let salt_base64 = general_purpose::STANDARD.encode(&salt);
@@ -235,25 +246,31 @@ impl DocumentGenerator {
                 salt_base64
             );
             let commitment = hash(&data);
+            let commitment_b64 = general_purpose::STANDARD.encode(&commitment);
 
-            let encrypted_data = public_key
-                .encrypt(&mut rng, Pkcs1v15Encrypt, &commitment)
-                .expect("Fehler beim Verschlüsseln der Nachricht");
+            match generate_key_pair() {
+                Ok((private_key_pem, public_key_pem)) => {
+                    match sign_data(&commitment_b64, &private_key_pem) {
+                        Ok(signature_b64) => {
+                            let signed_sensor_data = TceSensorData {
+                                tceId: tce.tceId.clone(),
+                                sensorkey: public_key_pem,
+                                signedSensorData: signature_b64,
+                                sensorData: sensor_data,
+                                commitment: general_purpose::STANDARD.encode(commitment),
+                                salt: salt_base64,
+                            };
 
-            let encrypted_data_base64 = general_purpose::STANDARD.encode(&encrypted_data);
-
-            let signed_sensor_data = TceSensorData {
-                tceId: tce.tceId.clone(),
-                sensorkey: public_key.to_pkcs1_pem(LineEnding::LF).unwrap(),
-                signedSensorData: encrypted_data_base64,
-                sensorData: sensor_data,
-                commitment: general_purpose::STANDARD.encode(commitment),
-                salt: salt_base64,
-            };
+                            ssd.push(signed_sensor_data);
+                        }
+                        Err(_e) => {}
+                    }
+                }
+                Err(_e) => {}
+            }
 
             tces.push(tce);
             tocs.push(toc);
-            ssd.push(signed_sensor_data);
         }
 
         for _ in 0..m {
@@ -301,17 +318,19 @@ impl DocumentGenerator {
             }],
         };
 
-        ProofingDocument {
+        let document = ProofingDocument {
             productFootprint: footprint,
             hocData: hocs,
             tocData: tocs,
             signedSensorData: Some(ssd),
             proof: Vec::new(),
-        }
+        };
+
+        document
     }
 }
 
-fn create_numbered_file(base_path: &Path, extension: &str) -> io::Result<PathBuf> {
+pub fn create_numbered_file(base_path: &Path, extension: &str) -> io::Result<PathBuf> {
     let mut counter = 0;
     loop {
         let file_name = format!(
