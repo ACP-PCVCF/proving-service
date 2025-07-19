@@ -26,9 +26,9 @@ COPY . .
 RUN curl -L https://risczero.com/install | bash && \
     /root/.risc0/bin/rzup install rust 1.85.0 && \
     /root/.risc0/bin/rzup install cpp 2024.1.5 && \
-    /root/.risc0/bin/rzup install r0vm 2.1.0 && \
-    /root/.risc0/bin/rzup install cargo-risczero 2.1.0 && \
-    /root/.risc0/bin/rzup default r0vm 2.1.0
+    /root/.risc0/bin/rzup install r0vm 2.3.0 && \
+    /root/.risc0/bin/rzup install cargo-risczero 2.3.0 && \
+    /root/.risc0/bin/rzup default r0vm 2.3.0
 
 # 6. Setze den PATH dauerhaft
 ENV PATH="/root/.risc0/bin:${PATH}"
