@@ -67,6 +67,7 @@ async fn main() {
         .set("enable.auto.commit", "true")
         .set("auto.commit.interval.ms", "5000")
         .set("message.max.bytes", "52428800")
+        .set("max.poll.interval.ms", "1800000")
         .create()
         .expect("Consumer creation failed");
 
