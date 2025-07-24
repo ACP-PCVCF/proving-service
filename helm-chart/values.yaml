@@ -1,0 +1,22 @@
+image:
+  registry: "ghcr.io/acp-pcvcf"
+  repository: "proving-service"
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+service:
+  name: proofing-service
+  port: 3000
+  targetPort: 3000
+
+deployment:
+  name: proving-service
+  replicas: 1
+  containerPort: 3000
+
+environment:
+  kafkaBroker: "kafka.proving-system.svc.cluster.local:9092"
+  kafkaInputTopic: "shipments"
+  kafkaOutputTopic: "pcf_results"
+
+namespace: proving-system
