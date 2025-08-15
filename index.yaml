@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  proving-service:
+  - apiVersion: v2
+    appVersion: 1.0.0
+    created: "2025-08-15T22:25:33.212613691Z"
+    description: A Helm chart for the proving-service microservice
+    digest: 04d0f851f46ed5ff673edf701b04e168fcf1eb078859337ea8b4065f0db5d2f6
+    name: proving-service
+    type: application
+    urls:
+    - https://github.com/ACP-PCVCF/proving-service/releases/download/proving-service-0.1.0/proving-service-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-08-15T22:25:33.212622929Z"
