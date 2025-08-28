@@ -253,7 +253,6 @@ mod tests {
     use proving_service_core::{
         product_footprint::ProductProof, proofing_document::ProofingDocument,
     };
-    use rand::Rng;
     use rdkafka::{consumer::{Consumer as _, StreamConsumer}, producer::{FutureProducer, FutureRecord}, ClientConfig, Message as _};
     use std::{
         env,
@@ -386,7 +385,7 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    async fn bench_proofaggregation() -> Result<(), Box<dyn std::error::Error>> {
+    async fn bench_aggregation() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut rng = rand::thread_rng();
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
@@ -394,37 +393,33 @@ mod tests {
 
 
         let mut generator = DocumentGenerator::new();
-        let mut collector = RunDataCollector::new("bench_proof_aggregation");
+        let mut collector = RunDataCollector::new("bench_aggregation");
         let mut response: Option<ProductProof> = None;
+        let mut blank_proving_document = generator.generate_proving_document(0, 0);
 
-        let mut tocs = 0;
-        let mut hocs = 0;
+        for i in 0..n {
 
-        // let mut proving_document = generator.generate_proving_document(0, 0);
+            let path = format!("../benchmarks/documents/comp_document_{}.json", i);
+            let json_content = fs::read_to_string(path)?;
+            let mut proving_document = parse_proving_document(&json_content)
+                .await
+                .expect("Failed to parse proving document");
 
-        for i in 0..20 {
+            blank_proving_document.tocData.append(&mut proving_document.tocData);
+            blank_proving_document.hocData.append(&mut proving_document.hocData);
+            match (&mut blank_proving_document.signedSensorData, &mut proving_document.signedSensorData) {
+                (Some(blank_vec), Some(proving_vec)) => blank_vec.append(proving_vec),
+                (None, Some(proving_vec)) if !proving_vec.is_empty() => {
+                    blank_proving_document.signedSensorData = Some(std::mem::take(proving_vec));
+                }
+                _ => {}
+            }
+            blank_proving_document.productFootprint.extensions[0].data.tces.append(&mut proving_document.productFootprint.extensions[0].data.tces);
 
-            let n: u32 = rng.gen_range(1..5);
-            let m: u32 = n.saturating_sub(rng.gen_range(0..3));
-            tocs = tocs + n;
-            hocs = hocs + m;
-            // let path = format!("../benchmarks/documents/comp_document_{}.json", i + 2);
-            // let json_content = fs::read_to_string(path)?;
-            // let mut proving_document = parse_proving_document(&json_content)
-            //     .await
-            //     .expect("Failed to parse proving document");
-
-            // proving_document.proof.clear();
-            // collector.start_new_run().set_input(&proving_document);
-            // response = main_proving_logic(proving_document.clone(), Some(&mut collector))
-            //     .await;
-            // collector.set_output(response.as_ref().unwrap());
-            // collector.print_current_run();
         }
 
-        let mut proving_document = generator.generate_proving_document(tocs, hocs);
-        collector.start_new_run().set_input(&proving_document);
-        response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+        collector.start_new_run().set_input(&blank_proving_document);
+        response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
             .await;
         collector.set_output(response.as_ref().unwrap());
         collector.print_current_run();
@@ -433,63 +428,30 @@ mod tests {
             .write_to_csv()
             .expect("Failed to write metrics to CSV");
         Ok(())
-
-
-        // let json_content = fs::read_to_string("json-examples/test_3_1_1.json")?;
-        // let mut proving_document = parse_proving_document(&json_content)
-        //     .await
-        //     .expect("Failed to parse proving document");
-
-        // for _ in 0..9 {
-        //     proving_document
-        //         .proof
-        //         .push(proving_document.proof[0].clone())
-        // }
-
-        // let _response = main_proving_logic(proving_document.clone(), None)
-        //     .await
-        //     .expect("Failed main logic");
-
-        // Ok(())
     }
 
     #[ignore]
     #[tokio::test]
-    async fn bench_aggregation() -> Result<(), Box<dyn std::error::Error>> {
+    async fn bench_proofaggregation() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
-        let n: u32 = 10;
+        let n: u32 = 20;
 
-        let mut collector = RunDataCollector::new("bench_aggregation");
+        let mut collector = RunDataCollector::new("bench_proofaggregation");
         let mut response: Option<ProductProof> = None;
         let mut generator = DocumentGenerator::new();
         let mut proofs : Vec<ProductProof> = Vec::new();
-        //let mut proving_document;
 
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
-        let mut docs: Vec<ProofingDocument> = Vec::new();
-        docs.push(generator.generate_proving_document(4, 2));
-        docs.push(generator.generate_proving_document(2, 1));
-        docs.push(generator.generate_proving_document(1, 1));
-        docs.push(generator.generate_proving_document(4, 2));
-        docs.push(generator.generate_proving_document(1, 0));
-        docs.push(generator.generate_proving_document(1, 1));
-        docs.push(generator.generate_proving_document(4, 2));
-        docs.push(generator.generate_proving_document(2, 0));
-        docs.push(generator.generate_proving_document(1, 0));
-        docs.push(generator.generate_proving_document(4, 4));
-        docs.push(generator.generate_proving_document(4, 3));
-        docs.push(generator.generate_proving_document(2, 0));
-        docs.push(generator.generate_proving_document(4, 0));
-        docs.push(generator.generate_proving_document(2, 0));
-        docs.push(generator.generate_proving_document(1, 0));
-        docs.push(generator.generate_proving_document(3, 1));
-        docs.push(generator.generate_proving_document(2, 2));
-        docs.push(generator.generate_proving_document(1, 1));
-        docs.push(generator.generate_proving_document(1, 1));
-        docs.push(generator.generate_proving_document(3, 2));
+        for i in 0..n {
+                        
+            let path = format!("../benchmarks/documents/comp_document_{}.json", i);
+            let json_content = fs::read_to_string(path)?;
+            let mut proving_document = parse_proving_document(&json_content)
+                .await
+                .expect("Failed to parse proving document");
 
-        for i in 0..docs.len() {
-            let proving_document = &docs[i];
+            proving_document.proof.clear();
+
             collector.start_new_run().set_input(&proving_document);
             response = main_proving_logic(proving_document.clone(), Some(&mut collector))
                 .await;
@@ -500,7 +462,7 @@ mod tests {
         
 
         match create_numbered_file(
-            std::path::Path::new("../benchmarks/documents/aggr_document"),
+            std::path::Path::new("../benchmarks/documents/proof_aggr_document"),
             "json",
         ) {
             Ok(path) => {
