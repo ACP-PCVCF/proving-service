@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: proving-service
-          image: proving-service:latest
-          imagePullPolicy: Never
+          image: ghcr.io/acp-pcvcf/proving-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:

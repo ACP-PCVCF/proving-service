@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.deployment.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.deployment.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.deployment.name }}
+    spec:
+      containers:
+        - name: proving-service
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.deployment.containerPort }}
+          env:
+            - name: KAFKA_BROKER
+              value: "{{ .Values.environment.kafkaBroker }}"
+            - name: KAFKA_INPUT_TOPIC
+              value: "{{ .Values.environment.kafkaInputTopic }}"
+            - name: KAFKA_OUTPUT_TOPIC
+              value: "{{ .Values.environment.kafkaOutputTopic }}"
