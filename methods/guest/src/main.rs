@@ -18,7 +18,7 @@ fn hash(data: &str) -> String {
     let mut hasher = Sha256::new();
     Update::update(&mut hasher, data.as_bytes());
     let computed_hash = hasher.finalize();
-    let computed_hash_b64 = general_purpose::STANDARD.encode(computed_hash);
+    let computed_hash_b64 = general_purpose::STANDARD.encode(&computed_hash);
     return computed_hash_b64
 }
 
@@ -35,7 +35,7 @@ fn process_proof_containers(
         env::verify(image_id.clone(), journal.bytes.as_slice()).unwrap();
         env::log(&format!("Guest: Image ID verified successfully: {}", image_id));
 
-        let pcf: f64 = journal.decode().expect("Failed to decode journal");
+        let (pcf, _): (f64, Vec<u8>) = journal.decode().expect("Failed to decode journal");
         env::log(&format!("Guest: PCF value from previous proof: {}", pcf));
         current_transport_pcf = pcf + current_transport_pcf;
     }
@@ -77,7 +77,8 @@ fn main() {
                     for signed_sensor_data in signed_sensor_data_list {
                         if signed_sensor_data.tceId == tce.tceId {
                             let concat = format!("{}{}", serde_json::to_string(&signed_sensor_data.sensorData).unwrap(), signed_sensor_data.salt);
-                            assert!(hash(&concat) == signed_sensor_data.commitment, "Commitment does not match the hash of sensor data and salt");
+                            let computed_hash = hash(&concat);
+                            assert!(computed_hash == signed_sensor_data.commitment, "Commitment does not match the hash of sensor data and salt");
                             sig_containers.push(SignatureContainer {
                                 commitment: signed_sensor_data.commitment.clone(),
                                 signature: signed_sensor_data.signedSensorData.clone(),

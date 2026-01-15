@@ -251,18 +251,37 @@ mod tests {
     };
 
     use super::handle_kafka_message;
-    use proving_service_core::{
-        product_footprint::ProductProof, proofing_document::ProofingDocument,
-    };
+    use proving_service_core::product_footprint::ProductProof;
     use rdkafka::{consumer::{Consumer as _, StreamConsumer}, producer::{FutureProducer, FutureRecord}, ClientConfig, Message as _};
     use std::{
         env,
         fs::{self, File},
-        io::Write, time::Duration,
+        io::Write,
+        path::{Path, PathBuf},
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
     use tokio;
 
     const DEV_MODE: &str = "false";
+
+    /// Find the most recent benchmark folder in benchmarks/documents/
+    fn get_latest_benchmark_folder() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let base_dir = Path::new("../benchmarks/documents");
+
+        let mut folders: Vec<PathBuf> = fs::read_dir(base_dir)?
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| path.is_dir() && path.file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.starts_with("benchmark_"))
+                .unwrap_or(false))
+            .collect();
+
+        folders.sort();
+        folders.last()
+            .cloned()
+            .ok_or_else(|| "No benchmark folder found. Run generate_benchmark_data first.".into())
+    }
 
     #[tokio::test]
     async fn kafka_service() {
@@ -337,36 +356,67 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
+    async fn generate_benchmark_data() -> Result<(), Box<dyn std::error::Error>> {
+        let n: u32 = 20;
+        let mut generator = DocumentGenerator::new();
+
+        // Create timestamped folder
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)?;
+        let timestamp = chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + now)
+            .format("%Y%m%d_%H%M%S")
+            .to_string();
+
+        let benchmark_dir = Path::new("../benchmarks/documents")
+            .join(format!("benchmark_{}", timestamp));
+        let base_docs_dir = benchmark_dir.join("base_documents");
+
+        fs::create_dir_all(&base_docs_dir)?;
+
+        println!("Generating {} benchmark documents in {}...", n, benchmark_dir.display());
+
+        for i in 0..n {
+            let proving_document = generator.generate_proving_document_random();
+
+            let path = base_docs_dir.join(format!("base_document_{}.json", i));
+            let mut file = File::create(&path)?;
+            let json_string = serde_json::to_string_pretty(&proving_document)?;
+            file.write_all(json_string.as_bytes())?;
+
+            println!("Created document {}: {}", i, path.display());
+        }
+
+        println!("Successfully generated {} benchmark documents in {}", n, benchmark_dir.display());
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test]
     async fn bench_composition() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
         let n: u32 = 20;
 
-        let mut generator = DocumentGenerator::new();
         let mut collector = RunDataCollector::new("bench_composition");
         let mut response: Option<ProductProof> = None;
 
-        for _ in 0..n {
-            let mut proving_document: ProofingDocument;
+        // Get the latest benchmark folder
+        let benchmark_dir = get_latest_benchmark_folder()?;
+        let base_docs_dir = benchmark_dir.join("base_documents");
+        let composition_dir = benchmark_dir.join("composition");
+        fs::create_dir_all(&composition_dir)?;
 
-            proving_document = generator.generate_proving_document_random().clone();
+        println!("Running composition benchmark with {} documents from {}...", n, benchmark_dir.display());
+
+        for i in 0..n {
+            let path = base_docs_dir.join(format!("base_document_{}.json", i));
+            let json_content = fs::read_to_string(&path)?;
+            let mut proving_document = parse_proving_document(&json_content)
+                .await
+                .expect("Failed to parse proving document");
+
+            // Add previous proof for composition
             if let Some(ref resp) = response {
                 proving_document.proof.push(resp.clone());
-            }
-
-            match create_numbered_file(
-                std::path::Path::new("../benchmarks/documents/comp_document"),
-                "json",
-            ) {
-                Ok(path) => {
-                    let mut file = File::create(&path)?;
-                    if let Some(json_string) = serde_json::to_string_pretty(&proving_document).ok()
-                    {
-                        file.write_all(json_string.as_bytes()).ok();
-                    }
-                }
-                Err(_) => {
-                    eprintln!("Failed to create proving document");
-                }
             }
 
             collector.start_new_run().set_input(&proving_document);
@@ -377,9 +427,17 @@ mod tests {
             );
             collector.set_output(response.as_ref().unwrap());
             collector.print_current_run();
+
+            // Save the proof to the composition folder
+            if let Some(ref resp) = response {
+                let proof_path = composition_dir.join(format!("comp_proof_{}.json", i));
+                let mut file = File::create(&proof_path)?;
+                let json_string = serde_json::to_string_pretty(resp)?;
+                file.write_all(json_string.as_bytes())?;
+            }
         }
         collector
-            .write_to_csv()
+            .write_to_csv_with_path(&benchmark_dir)
             .expect("Failed to write metrics to CSV");
         Ok(())
     }
@@ -387,25 +445,29 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn bench_aggregation() -> Result<(), Box<dyn std::error::Error>> {
-
-        let mut rng = rand::thread_rng();
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
         let n: u32 = 20;
 
-
         let mut generator = DocumentGenerator::new();
         let mut collector = RunDataCollector::new("bench_aggregation");
-        let mut response: Option<ProductProof> = None;
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
 
-        for i in 0..n {
+        // Get the latest benchmark folder
+        let benchmark_dir = get_latest_benchmark_folder()?;
+        let base_docs_dir = benchmark_dir.join("base_documents");
+        let aggregation_dir = benchmark_dir.join("aggregation");
+        fs::create_dir_all(&aggregation_dir)?;
 
-            let path = format!("../benchmarks/documents/comp_document_{}.json", i);
+        println!("Running aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
+
+        for i in 0..n {
+            let path = base_docs_dir.join(format!("base_document_{}.json", i));
             let json_content = fs::read_to_string(path)?;
             let mut proving_document = parse_proving_document(&json_content)
                 .await
                 .expect("Failed to parse proving document");
 
+            // Aggregate all TCE data from each document
             blank_proving_document.tocData.append(&mut proving_document.tocData);
             blank_proving_document.hocData.append(&mut proving_document.hocData);
             match (&mut blank_proving_document.signedSensorData, &mut proving_document.signedSensorData) {
@@ -416,17 +478,30 @@ mod tests {
                 _ => {}
             }
             blank_proving_document.productFootprint.extensions[0].data.tces.append(&mut proving_document.productFootprint.extensions[0].data.tces);
-
         }
 
+        // Save the aggregated document
+        let aggregated_doc_path = aggregation_dir.join("aggregated_document.json");
+        let mut file = File::create(&aggregated_doc_path)?;
+        let json_string = serde_json::to_string_pretty(&blank_proving_document)?;
+        file.write_all(json_string.as_bytes())?;
+
         collector.start_new_run().set_input(&blank_proving_document);
-        response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
+        let response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
             .await;
         collector.set_output(response.as_ref().unwrap());
         collector.print_current_run();
 
+        // Save the aggregation proof
+        if let Some(ref resp) = response {
+            let proof_path = aggregation_dir.join("aggregation_proof.json");
+            let mut file = File::create(&proof_path)?;
+            let json_string = serde_json::to_string_pretty(resp)?;
+            file.write_all(json_string.as_bytes())?;
+        }
+
         collector
-            .write_to_csv()
+            .write_to_csv_with_path(&benchmark_dir)
             .expect("Failed to write metrics to CSV");
         Ok(())
     }
@@ -438,57 +513,69 @@ mod tests {
         let n: u32 = 20;
 
         let mut collector = RunDataCollector::new("bench_proofaggregation");
-        let mut response: Option<ProductProof> = None;
         let mut generator = DocumentGenerator::new();
-        let mut proofs : Vec<ProductProof> = Vec::new();
 
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
+
+        // Get the latest benchmark folder
+        let benchmark_dir = get_latest_benchmark_folder()?;
+        let base_docs_dir = benchmark_dir.join("base_documents");
+        let proof_aggr_dir = benchmark_dir.join("proof_aggregation");
+        fs::create_dir_all(&proof_aggr_dir)?;
+
+        println!("Running proof aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
+
+        // Generate individual proofs for each document
         for i in 0..n {
-                        
-            let path = format!("../benchmarks/documents/comp_document_{}.json", i);
+            let path = base_docs_dir.join(format!("base_document_{}.json", i));
             let json_content = fs::read_to_string(path)?;
-            let mut proving_document = parse_proving_document(&json_content)
+            let proving_document = parse_proving_document(&json_content)
                 .await
                 .expect("Failed to parse proving document");
 
-            proving_document.proof.clear();
-
             collector.start_new_run().set_input(&proving_document);
-            response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+            let response = main_proving_logic(proving_document.clone(), Some(&mut collector))
                 .await;
             collector.set_output(response.as_ref().unwrap());
             collector.print_current_run();
+
+            // Save individual proof
+            if let Some(ref resp) = response {
+                let proof_path = proof_aggr_dir.join(format!("individual_proof_{}.json", i));
+                let mut file = File::create(&proof_path)?;
+                let json_string = serde_json::to_string_pretty(resp)?;
+                file.write_all(json_string.as_bytes())?;
+            }
+
             blank_proving_document.proof.push(response.unwrap().clone());
         }
-        
 
-        match create_numbered_file(
-            std::path::Path::new("../benchmarks/documents/proof_aggr_document"),
-            "json",
-        ) {
-            Ok(path) => {
-                let mut file = File::create(&path)?;
-                if let Some(json_string) = serde_json::to_string_pretty(&blank_proving_document).ok() {
-                    file.write_all(json_string.as_bytes()).ok();
-                }
-            }
-            Err(_) => {
-                eprintln!("Failed to create proving document");
-            }
-        }
+        // Save the aggregated proof document (contains all individual proofs)
+        let aggr_doc_path = proof_aggr_dir.join("proof_aggr_document.json");
+        let mut file = File::create(&aggr_doc_path)?;
+        let json_string = serde_json::to_string_pretty(&blank_proving_document)?;
+        file.write_all(json_string.as_bytes())?;
 
+        // Verify all aggregated proofs together
         collector.start_new_run().set_input(&blank_proving_document);
-        response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
+        let response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
             .await;
         collector.set_output(response.as_ref().unwrap());
         collector.print_current_run();
-        proofs.push(response.unwrap().clone());
+
+        // Save the final aggregated verification proof
+        if let Some(ref resp) = response {
+            let final_proof_path = proof_aggr_dir.join("final_aggregated_proof.json");
+            let mut file = File::create(&final_proof_path)?;
+            let json_string = serde_json::to_string_pretty(resp)?;
+            file.write_all(json_string.as_bytes())?;
+        }
 
         collector
-            .write_to_csv()
+            .write_to_csv_with_path(&benchmark_dir)
             .expect("Failed to write metrics to CSV");
         Ok(())
     }
 
-    
+
 }

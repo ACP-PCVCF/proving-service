@@ -72,8 +72,11 @@ pub fn process_and_write_proofs<'a>(
                 &sig_container.signature,
                 &sig_container.pub_key,
             ) {
-                eprintln!("Signature verification failed");
-                continue;
+                eprintln!(
+                    "Signature verification failed for proof with productFootprintId: {}",
+                    pcf_proof.productFootprintId
+                );
+                return;
             }
         }
 

@@ -1,0 +1,16 @@
+[project]
+name = "bench-notebook"
+version = "0.1.0"
+description = "Benchmarking proving service"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0.0",
+    "matplotlib>=3.7.0",
+    "numpy>=1.24.0",
+    "seaborn>=0.13.0",
+    "jupyter>=1.0.0",
+    "ipykernel>=6.25.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = []

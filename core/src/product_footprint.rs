@@ -1,11 +1,38 @@
 #![allow(non_snake_case)]
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
+
+// Custom serializer to round f64 to 6 decimal places for consistent JSON output
+fn round_f64<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    // Round to 6 decimal places: multiply by 1,000,000, round, then divide
+    let rounded = (value * 1_000_000.0).round() / 1_000_000.0;
+    serializer.serialize_f64(rounded)
+}
+
+// Custom serializer for Option<f64> with rounding
+fn round_option_f64<S>(value: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match value {
+        Some(v) => {
+            let rounded = (v * 1_000_000.0).round() / 1_000_000.0;
+            serializer.serialize_some(&rounded)
+        }
+        None => serializer.serialize_none(),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Distance {
+    #[serde(serialize_with = "round_f64")]
     pub actual: f64,
+    #[serde(serialize_with = "round_option_f64")]
     pub gcd: Option<f64>,
+    #[serde(serialize_with = "round_option_f64")]
     pub sfd: Option<f64>,
 }
 
