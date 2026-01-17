@@ -1,4 +1,7 @@
-use methods::{GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID};
+use methods::{
+    GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID,
+    GUEST_BASELINE_ELF, GUEST_BASELINE_ID
+};
 
 use base64::{engine::general_purpose, Engine as _};
 use chrono::Local;
@@ -137,12 +140,26 @@ async fn main_proving_logic(
 
     // Start the proving process
     let prover = default_prover();
-    println!("ELF size: {}", GUEST_PROOFING_LOGIC_ELF.len());
+
+    // Choose guest based on environment variable
+    let use_baseline = std::env::var("USE_BASELINE_GUEST")
+        .unwrap_or_else(|_| "false".to_string())
+        .to_lowercase() == "true";
+
+    let (guest_elf, guest_id) = if use_baseline {
+        println!("Using BASELINE guest (full signature verification)");
+        (GUEST_BASELINE_ELF, GUEST_BASELINE_ID)
+    } else {
+        println!("Using LAZY guest (lazy signature verification)");
+        (GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID)
+    };
+
+    println!("ELF size: {}", guest_elf.len());
 
     #[cfg(test)] // Benchmarking
     let proof_start_time = Instant::now();
 
-    let prove_info = match prover.prove(env, GUEST_PROOFING_LOGIC_ELF) {
+    let prove_info = match prover.prove(env, guest_elf) {
         Ok(info) => info,
         Err(e) => {
             eprintln!("Error while proving: {}", e);
@@ -164,7 +181,7 @@ async fn main_proving_logic(
             }
         };
 
-    if let Err(e) = receipt.verify(GUEST_PROOFING_LOGIC_ID) {
+    if let Err(e) = receipt.verify(guest_id) {
         eprintln!("Receipt verification failed: {}", e);
         return None;
     }
@@ -190,7 +207,7 @@ async fn main_proving_logic(
         proofReceipt: encoded_receipt,
         proofReference: "123".to_string(),
         pcf: journal_output,
-        imageId: hex::encode(bytemuck::cast_slice(&GUEST_PROOFING_LOGIC_ID)),
+        imageId: hex::encode(bytemuck::cast_slice(&guest_id)),
     };
 
     if DEBUG {
@@ -357,7 +374,10 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn generate_benchmark_data() -> Result<(), Box<dyn std::error::Error>> {
-        let n: u32 = 20;
+        let n: u32 = env::var("BENCHMARK_NUM_DOCS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(15);
         let mut generator = DocumentGenerator::new();
 
         // Create timestamped folder
@@ -394,15 +414,27 @@ mod tests {
     #[tokio::test]
     async fn bench_composition() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
-        let n: u32 = 20;
+        let n: u32 = env::var("BENCHMARK_NUM_DOCS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(15);
 
-        let mut collector = RunDataCollector::new("bench_composition");
+        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            "bench_composition_baseline"
+        } else {
+            "bench_composition_lazy"
+        };
+        let mut collector = RunDataCollector::new(test_name);
         let mut response: Option<ProductProof> = None;
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let composition_dir = benchmark_dir.join("composition");
+        let composition_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            benchmark_dir.join("composition_baseline")
+        } else {
+            benchmark_dir.join("composition_lazy")
+        };
         fs::create_dir_all(&composition_dir)?;
 
         println!("Running composition benchmark with {} documents from {}...", n, benchmark_dir.display());
@@ -446,16 +478,28 @@ mod tests {
     #[tokio::test]
     async fn bench_aggregation() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
-        let n: u32 = 20;
+        let n: u32 = env::var("BENCHMARK_NUM_DOCS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(15);
 
         let mut generator = DocumentGenerator::new();
-        let mut collector = RunDataCollector::new("bench_aggregation");
+        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            "bench_aggregation_baseline"
+        } else {
+            "bench_aggregation"
+        };
+        let mut collector = RunDataCollector::new(test_name);
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let aggregation_dir = benchmark_dir.join("aggregation");
+        let aggregation_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            benchmark_dir.join("aggregation_baseline")
+        } else {
+            benchmark_dir.join("aggregation")
+        };
         fs::create_dir_all(&aggregation_dir)?;
 
         println!("Running aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
@@ -510,23 +554,33 @@ mod tests {
     #[tokio::test]
     async fn bench_proofaggregation() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
-        let n: u32 = 20;
+        let n: u32 = env::var("BENCHMARK_NUM_DOCS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(15);
 
-        let mut collector = RunDataCollector::new("bench_proofaggregation");
-        let mut generator = DocumentGenerator::new();
-
-        let mut blank_proving_document = generator.generate_proving_document(0, 0);
+        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            "bench_proofaggregation_baseline"
+        } else {
+            "bench_proofaggregation_lazy"
+        };
+        let mut collector = RunDataCollector::new(test_name);
+        let mut previous_proofs: Vec<ProductProof> = Vec::new();
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let proof_aggr_dir = benchmark_dir.join("proof_aggregation");
+        let proof_aggr_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            benchmark_dir.join("proof_aggregation_baseline")
+        } else {
+            benchmark_dir.join("proof_aggregation_lazy")
+        };
         fs::create_dir_all(&proof_aggr_dir)?;
 
         println!("Running proof aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
 
-        // Generate individual proofs for each document
-        for i in 0..n {
+        // Generate individual proofs for documents 0 to n-2
+        for i in 0..(n - 1) {
             let path = base_docs_dir.join(format!("base_document_{}.json", i));
             let json_content = fs::read_to_string(path)?;
             let proving_document = parse_proving_document(&json_content)
@@ -547,29 +601,161 @@ mod tests {
                 file.write_all(json_string.as_bytes())?;
             }
 
-            blank_proving_document.proof.push(response.unwrap().clone());
+            previous_proofs.push(response.unwrap().clone());
         }
 
-        // Save the aggregated proof document (contains all individual proofs)
+        // Final proof (document n-1): verifies all previous proofs AND processes its own data
+        let final_doc_index = n - 1;
+        let path = base_docs_dir.join(format!("base_document_{}.json", final_doc_index));
+        let json_content = fs::read_to_string(path)?;
+        let mut final_proving_document = parse_proving_document(&json_content)
+            .await
+            .expect("Failed to parse proving document");
+
+        // Add all previous proofs to the final document
+        final_proving_document.proof = previous_proofs;
+
+        // Save the aggregated proof document (contains all previous proofs + final document data)
         let aggr_doc_path = proof_aggr_dir.join("proof_aggr_document.json");
         let mut file = File::create(&aggr_doc_path)?;
-        let json_string = serde_json::to_string_pretty(&blank_proving_document)?;
+        let json_string = serde_json::to_string_pretty(&final_proving_document)?;
         file.write_all(json_string.as_bytes())?;
 
-        // Verify all aggregated proofs together
-        collector.start_new_run().set_input(&blank_proving_document);
-        let response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
+        // Generate the final proof that verifies all previous proofs and processes document 19
+        collector.start_new_run().set_input(&final_proving_document);
+        let response = main_proving_logic(final_proving_document.clone(), Some(&mut collector))
             .await;
         collector.set_output(response.as_ref().unwrap());
         collector.print_current_run();
 
-        // Save the final aggregated verification proof
+        // Save the final aggregated proof
         if let Some(ref resp) = response {
-            let final_proof_path = proof_aggr_dir.join("final_aggregated_proof.json");
+            // Build the list of child document indices
+            let child_indices: Vec<String> = (0..(n - 1)).map(|i| i.to_string()).collect();
+            let children_list = child_indices.join("_");
+            let final_proof_path = proof_aggr_dir.join(format!("parent_proof_from_documents_{}.json", children_list));
             let mut file = File::create(&final_proof_path)?;
             let json_string = serde_json::to_string_pretty(resp)?;
             file.write_all(json_string.as_bytes())?;
         }
+
+        collector
+            .write_to_csv_with_path(&benchmark_dir)
+            .expect("Failed to write metrics to CSV");
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn bench_tree_aggregation() -> Result<(), Box<dyn std::error::Error>> {
+        env::set_var("RISC0_DEV_MODE", DEV_MODE);
+
+        let total_documents: u32 = env::var("BENCHMARK_NUM_DOCS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(15);
+
+        // Calculate number of leaves
+        let num_leaves: u32 = (total_documents + 1) / 2;
+
+        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            "bench_tree_aggregation_baseline"
+        } else {
+            "bench_tree_aggregation_lazy"
+        };
+        let mut collector = RunDataCollector::new(test_name);
+
+        // Get the latest benchmark folder
+        let benchmark_dir = get_latest_benchmark_folder()?;
+        let base_docs_dir = benchmark_dir.join("base_documents");
+        let tree_aggr_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
+            benchmark_dir.join("tree_aggregation_baseline")
+        } else {
+            benchmark_dir.join("tree_aggregation_lazy")
+        };
+        fs::create_dir_all(&tree_aggr_dir)?;
+
+        // Map to store proofs by document index
+        let mut proofs: std::collections::HashMap<u32, ProductProof> = std::collections::HashMap::new();
+
+        // Level 0: Generate individual proofs for leaf documents
+        println!("\nLevel 0: Generating {} leaf proofs (docs 0-{})", num_leaves, num_leaves - 1);
+        for i in 0..num_leaves {
+            let path = base_docs_dir.join(format!("base_document_{}.json", i));
+            let json_content = fs::read_to_string(path)?;
+            let proving_document = parse_proving_document(&json_content)
+                .await
+                .expect("Failed to parse proving document");
+
+            collector.start_new_run().set_input(&proving_document);
+            let response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+                .await
+                .expect("Failed to generate leaf proof");
+            collector.set_output(&response);
+            collector.print_current_run();
+
+            // Save leaf proof
+            let proof_path = tree_aggr_dir.join(format!("level_0_doc_{}.json", i));
+            let mut file = File::create(&proof_path)?;
+            let json_string = serde_json::to_string_pretty(&response)?;
+            file.write_all(json_string.as_bytes())?;
+
+            proofs.insert(i, response);
+        }
+
+        // Build parent levels dynamically
+        let mut current_level = 0;
+        let mut level_start = 0_u32;
+        let mut level_count = num_leaves;
+        let mut next_doc_index = num_leaves;
+
+        while level_count > 1 {
+            current_level += 1;
+            let next_level_count = level_count / 2;
+
+            println!("\nLevel {}: Generating {} parent proofs (docs {}-{})",
+                     current_level, next_level_count, next_doc_index, next_doc_index + next_level_count - 1);
+
+            for i in 0..next_level_count {
+                let doc_index = next_doc_index + i;
+                let left_child = level_start + (i * 2);
+                let right_child = level_start + (i * 2) + 1;
+
+                let path = base_docs_dir.join(format!("base_document_{}.json", doc_index));
+                let json_content = fs::read_to_string(path)?;
+                let mut proving_document = parse_proving_document(&json_content)
+                    .await
+                    .expect("Failed to parse proving document");
+
+                // Add child proofs
+                proving_document.proof.push(proofs.get(&left_child).unwrap().clone());
+                proving_document.proof.push(proofs.get(&right_child).unwrap().clone());
+
+                collector.start_new_run().set_input(&proving_document);
+                let response = main_proving_logic(proving_document.clone(), Some(&mut collector))
+                    .await
+                    .expect("Failed to generate proof");
+                collector.set_output(&response);
+                collector.print_current_run();
+
+                let proof_path = tree_aggr_dir.join(format!(
+                    "level_{}_doc_{}_from_{}_and_{}.json",
+                    current_level, doc_index, left_child, right_child
+                ));
+                let mut file = File::create(&proof_path)?;
+                let json_string = serde_json::to_string_pretty(&response)?;
+                file.write_all(json_string.as_bytes())?;
+
+                proofs.insert(doc_index, response);
+            }
+
+            level_start += level_count;
+            level_count = next_level_count;
+            next_doc_index += next_level_count;
+        }
+
+        println!("\nTree aggregation complete");
+        println!("Perfect binary tree: {} documents, {} levels", total_documents, current_level + 1);
 
         collector
             .write_to_csv_with_path(&benchmark_dir)

@@ -1,48 +1,51 @@
 #!/bin/bash
+set -e
 
-set -e 
+NUM_DOCS=15
+BOTH_GUESTS=false
 
-echo "Starting Benchmarks..."
+while getopts "n:bh" opt; do
+  case $opt in
+    n) NUM_DOCS=$OPTARG ;;
+    b) BOTH_GUESTS=true ;;
+    h)
+      echo "Usage: $0 [-n NUM_DOCS] [-b]"
+      echo "  -n  Number of documents (default: 15, must be 2^k-1 for tree)"
+      echo "  -b  Run both lazy and baseline guests"
+      exit 0 ;;
+  esac
+done
+
+[ ! -f "Cargo.toml" ] && echo "Run from project root" && exit 1
+
+export BENCHMARK_NUM_DOCS=$NUM_DOCS
+
 echo ""
+echo "Generating $NUM_DOCS benchmark documents"
+cargo test generate_benchmark_data -- --ignored --nocapture
 
-# Check if we're in the right directory
-if [ ! -f "Cargo.toml" ]; then
-    echo "Error: Please run this script from the project root directory"
-    exit 1
+run_benchmarks() {
+    echo ""
+    echo "Running benchmarks with $1"
+
+    echo "[1/3] Composition"
+    cargo test bench_composition -- --ignored --nocapture
+
+    echo "[2/3] Proof aggregation"
+    cargo test bench_proofaggregation -- --ignored --nocapture
+
+    echo "[3/3] Tree aggregation"
+    cargo test bench_tree_aggregation -- --ignored --nocapture
+}
+
+export USE_BASELINE_GUEST=false
+run_benchmarks "lazy guest"
+
+if [ "$BOTH_GUESTS" = true ]; then
+    export USE_BASELINE_GUEST=true
+    run_benchmarks "baseline guest"
 fi
 
-# Step 1: Generate benchmark data
-echo "[1/4] Generating benchmark data..."
-echo "------------------------------------------------------------------------"
-cargo test generate_benchmark_data -- --ignored --nocapture
+LATEST=$(ls -1 benchmarks/documents/ | grep "^benchmark_" | sort | tail -n 1)
 echo ""
-
-# Step 2: Run composition benchmark
-echo "[2/4] Running composition benchmark..."
-echo "------------------------------------------------------------------------"
-cargo test bench_composition -- --ignored --nocapture
-echo ""
-
-# Step 3: Run aggregation benchmark
-echo "[3/4] Running aggregation benchmark..."
-echo "------------------------------------------------------------------------"
-cargo test bench_aggregation -- --ignored --nocapture
-echo ""
-
-# Step 4: Run proof aggregation benchmark
-echo "[4/4] Running proof aggregation benchmark..."
-echo "------------------------------------------------------------------------"
-cargo test bench_proofaggregation -- --ignored --nocapture
-echo ""
-
-# Find the latest benchmark folder
-LATEST_BENCHMARK=$(ls -1 benchmarks/documents/ | grep "^benchmark_" | sort | tail -n 1)
-
-echo "Benchmarks Complete!"
-echo ""
-echo "Results saved to: benchmarks/documents/$LATEST_BENCHMARK"
-echo ""
-echo "To generate plots, run:"
-echo "  cd benchmarks/plots"
-echo "  python generate_plots.py ../documents/$LATEST_BENCHMARK"
-echo ""
+echo "Results in: benchmarks/documents/$LATEST"

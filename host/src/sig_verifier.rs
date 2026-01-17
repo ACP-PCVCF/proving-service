@@ -111,7 +111,7 @@ pub fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &
 
     let public_key = match RsaPublicKey::from_public_key_pem(public_key_pem) {
         Ok(pk) => {
-            println!("Signatur erfolgreich verifiziert");
+            println!("Host: Public key successfully loaded");
             pk
         },
         Err(e) => {
@@ -144,7 +144,7 @@ pub fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &
     let padding = Pkcs1v15Sign::new::<Sha256WithOid>();
     match public_key.verify(padding, &digest_val, &signature) {
         Ok(_) => {
-            println!("Signatur ist gültig.");
+            println!("Host: Signature is valid.");
             true
         }
         Err(e) => {

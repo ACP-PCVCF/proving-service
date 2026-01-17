@@ -1,0 +1,104 @@
+{
+  "productFootprint": {
+    "id": "4557",
+    "specVersion": "None",
+    "version": 0,
+    "created": "None",
+    "status": "None",
+    "companyName": "None",
+    "companyIds": [],
+    "productDescription": "None",
+    "productIds": [],
+    "productCategoryCpc": 0,
+    "productNameCompany": "None",
+    "pcf": null,
+    "comment": "None",
+    "extensions": [
+      {
+        "specVersion": "2.0.0",
+        "dataSchema": "None",
+        "data": {
+          "mass": 931.3756854384765,
+          "shipmentId": "3054",
+          "tces": [
+            {
+              "tceId": "4868",
+              "prevTceIds": [],
+              "hocId": null,
+              "tocId": "8111",
+              "shipmentId": "3054",
+              "mass": 931.3756854384765,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 164.876507,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "5243",
+              "prevTceIds": [
+                "4868"
+              ],
+              "hocId": "5760",
+              "tocId": null,
+              "shipmentId": "3054",
+              "mass": 931.3756854384765,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tocData": [
+    {
+      "tocId": "8111",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "10",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    }
+  ],
+  "hocData": [
+    {
+      "hocId": "5760",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "93",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    }
+  ],
+  "signedSensorData": [
+    {
+      "tceId": "4868",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw2SsOuxCvWFDqAm+IpOs\n+aqmIvogn21nsCDYVhOI8gYQc/P6+RodEGLZZ35hqqQgov30Y8AaYr8mHAun54wY\n6egYb9UHMHf/0WqEvYusfkLEwWUb37w2PLfbMgA9CIukjr51FlJ/oezUWL1s1Qn1\nl/zbP4oD0myLogGfe5rHG50rxrFIg04OeZyKahwOp3AtxnsPfsOUnh97Pxrr4xBK\niZEbnD5lcHJ+iODOTvtO54h7HOVOF7avsVjv4XGb5FLRtKSoZ9NVsvYf+JLavlZB\n1Jlscgbvs49sQ02VM60NwjjsUQLIiW2Xra7lZT9MZhO8rlJbhW16jiuNgWxhwTGM\nJwIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "WQKFlWtjqTpJn4ggIG80JYPyEv83mrhYFAexDztrtVwHPti4p/T3mIJB6via9hjh5wfieQ2BzpT4VGStBVWXv5hSId5K4jr0vaCi0Fv1C9wxv0Loce9t3c6OCTFNKNTPRJWUEFLzLcsVeNbEBLAnq6Qs6XiS7wELW2MeiyvBX98OJzcXVEEPVp0gIIBrlokF2x30nlzYA4G4MQtW3iSWcVm3a/L/Oh/cUkvZuUFfaz7sDvk0qujhmJagD+SYFKUXUdjvUHe40hFw8cEqnY4zbNt4hV/kS/dEVLhimMkMjNBRjSBL40m85w4NY+uhQwPeRpV8yIm0eQetuKNxV6InEQ==",
+      "sensorData": {
+        "distance": {
+          "actual": 164.876507,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "hG5IoW1pWudm1xHlTxjghKy7xcCATIJdmWsfA9RMhAk=",
+      "salt": "La08ByJr4cat2FjiXnZOhDiRyfukO9pqs36/og9gLEw="
+    }
+  ],
+  "proof": []
+}

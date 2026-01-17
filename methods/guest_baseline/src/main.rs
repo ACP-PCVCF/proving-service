@@ -15,6 +15,7 @@ use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
 use sha2::digest::Update;
+use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
 
 fn hash(data: &str) -> String {
     let mut hasher = Sha256::<Sha256Impl>::new();
@@ -22,6 +23,49 @@ fn hash(data: &str) -> String {
     let computed_hash = hasher.finalize();
     let computed_hash_b64 = general_purpose::STANDARD.encode(&computed_hash);
     return computed_hash_b64
+}
+
+fn verify_signature_in_guest(commitment: &str, signed_sensor_data: &str, sensorkey: &str) -> bool {
+    let public_key = match RsaPublicKey::from_public_key_pem(sensorkey) {
+        Ok(pk) => pk,
+        Err(_) => {
+            // Fallback to PKCS#1
+            match RsaPublicKey::from_pkcs1_pem(sensorkey) {
+                Ok(pk_fallback) => pk_fallback,
+                Err(_) => {
+                    env::log("Guest Baseline: Failed to parse public key");
+                    return false;
+                }
+            }
+        }
+    };
+
+    // Hash the commitment
+    let mut hasher = Sha256::<Sha256Impl>::new();
+    Update::update(&mut hasher, commitment.as_bytes());
+    let digest_val = hasher.finalize();
+
+    // Decode signature from base64
+    let signature = match general_purpose::STANDARD.decode(signed_sensor_data) {
+        Ok(sig) => sig,
+        Err(_) => {
+            env::log("Guest Baseline: Failed to decode signature");
+            return false;
+        }
+    };
+
+    // Verify signature
+    let padding = rsa::Pkcs1v15Sign::new::<Sha256::<Sha256Impl>>();
+    match public_key.verify(padding, &digest_val, &signature) {
+        Ok(_) => {
+            env::log("Guest Baseline: Signature verified successfully");
+            true
+        }
+        Err(_) => {
+            env::log("Guest Baseline: Signature verification failed");
+            false
+        }
+    }
 }
 
 fn process_proof_containers(
@@ -35,10 +79,11 @@ fn process_proof_containers(
         let journal: Journal = proof_container.journal.clone();
 
         env::verify(image_id.clone(), journal.bytes.as_slice()).unwrap();
-        env::log(&format!("Guest: Image ID verified successfully: {}", image_id));
+        env::log(&format!("Guest Baseline: Image ID verified successfully: {}", image_id));
 
-        let pcf: f64 = journal.decode().expect("Failed to decode pcf");
-        env::log(&format!("Guest: PCF value from previous proof: {}", pcf));
+        let (pcf, _): (f64, Vec<u8>) = journal.decode().expect("Failed to decode journal");
+        env::log(&format!("Guest Baseline: PCF value from previous proof: {}", pcf));
+
         current_transport_pcf = pcf + current_transport_pcf;
     }
 
@@ -47,18 +92,17 @@ fn process_proof_containers(
 
 fn main() {
     // Initialize
-    env::log("Guest: Starting the guest program...");
+    env::log("Guest Baseline: Starting with signature verification...");
     let mut transport_pcf: f64 = 0.0;
 
     // Read inputs
-    env::log("Guest: Reading Inputs...");
-    let mut sig_containers: Vec<SignatureContainer> = Vec::new();
+    env::log("Guest Baseline: Reading Inputs...");
     let product_footprint: ProofingDocument = env::read();
     let serialized_proof_containers: Vec<u8> = env::read();
     let proof_containers: Vec<ProofContainer> = bincode::deserialize(&serialized_proof_containers)
-        .expect("Guest: Failed to deserialize proof_containers");
+        .expect("Guest Baseline: Failed to deserialize proof_containers");
 
-    // Verify previous proofs and add pcf value 
+    // Verify previous proofs and add pcf value
     transport_pcf = process_proof_containers(&proof_containers, transport_pcf);
 
     let ileap_extension: &Extension = &product_footprint.productFootprint.extensions[0];
@@ -71,28 +115,33 @@ fn main() {
                 let emission_factor: f64 = emission_factor_toc(
                     &product_footprint.tocData,
                     tce.tocId.clone().unwrap()
-                );       
+                );
 
                 let emissions: f64 = tce.mass * emission_factor * distance.actual;
 
+                // BASELINE: Verify signatures immediately
                 if let Some(signed_sensor_data_list) = &product_footprint.signedSensorData {
                     for signed_sensor_data in signed_sensor_data_list {
                         if signed_sensor_data.tceId == tce.tceId {
                             let concat = format!("{}{}", serde_json::to_string(&signed_sensor_data.sensorData).unwrap(), signed_sensor_data.salt);
                             let computed_hash = hash(&concat);
                             assert!(computed_hash == signed_sensor_data.commitment, "Commitment does not match the hash of sensor data and salt");
-                            sig_containers.push(SignatureContainer {
-                                commitment: signed_sensor_data.commitment.clone(),
-                                signature: signed_sensor_data.signedSensorData.clone(),
-                                pub_key: signed_sensor_data.sensorkey.clone(),
-                            });
+
+                            // BASELINE: Verify signature immediately (not lazy)
+                            env::log(&format!("Guest Baseline: Verifying signature for TCE {}", tce.tceId));
+                            let verified = verify_signature_in_guest(
+                                &signed_sensor_data.commitment,
+                                &signed_sensor_data.signedSensorData,
+                                &signed_sensor_data.sensorkey,
+                            );
+                            assert!(verified, "Guest Baseline: Signature verification failed for current document");
                         }
                     }
                 }
 
                 transport_pcf += emissions;
             } else {
-                env::log("Distance is missing"); 
+                env::log("Distance is missing");
             }
         }
 
@@ -132,9 +181,13 @@ fn main() {
         return factor;
     }
 
-    env::log(&format!("Total Emissions {} kg CO2e", transport_pcf));
+    env::log(&format!("Guest Baseline: Total Emissions {} kg CO2e", transport_pcf));
     env::commit(&transport_pcf);
-    let serialized_sig_containers: Vec<u8> = bincode::serialize(&sig_containers)
-        .expect("Failed to serialize sig_containers");
-    env::commit(&serialized_sig_containers);
+
+    // BASELINE: Commit empty vector - signatures already verified inside the proof
+    let empty_sig_containers: Vec<SignatureContainer> = Vec::new();
+    let serialized_empty: Vec<u8> = bincode::serialize(&empty_sig_containers)
+        .expect("Failed to serialize empty sig_containers");
+    env::log("Guest Baseline: Committing empty signature container (signatures are already verified)");
+    env::commit(&serialized_empty);
 }
