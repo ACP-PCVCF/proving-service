@@ -1,0 +1,602 @@
+{
+  "productFootprint": {
+    "id": "1762",
+    "specVersion": "None",
+    "version": 0,
+    "created": "None",
+    "status": "None",
+    "companyName": "None",
+    "companyIds": [],
+    "productDescription": "None",
+    "productIds": [],
+    "productCategoryCpc": 0,
+    "productNameCompany": "None",
+    "pcf": null,
+    "comment": "None",
+    "extensions": [
+      {
+        "specVersion": "2.0.0",
+        "dataSchema": "None",
+        "data": {
+          "mass": 82.4734078549868,
+          "shipmentId": "1946",
+          "tces": [
+            {
+              "tceId": "3016",
+              "prevTceIds": [],
+              "hocId": null,
+              "tocId": "3255",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 903.670242,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "140",
+              "prevTceIds": [
+                "3016"
+              ],
+              "hocId": null,
+              "tocId": "5776",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 981.722314,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "9511",
+              "prevTceIds": [
+                "3016",
+                "140"
+              ],
+              "hocId": null,
+              "tocId": "3744",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 100.642691,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "8518",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511"
+              ],
+              "hocId": null,
+              "tocId": "9489",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 164.209355,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "2886",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518"
+              ],
+              "hocId": null,
+              "tocId": "9365",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 282.488869,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "4605",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886"
+              ],
+              "hocId": null,
+              "tocId": "3209",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 548.755575,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "8316",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605"
+              ],
+              "hocId": null,
+              "tocId": "1693",
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": {
+                "actual": 434.67653,
+                "gcd": null,
+                "sfd": null
+              }
+            },
+            {
+              "tceId": "5461",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316"
+              ],
+              "hocId": "7801",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "6009",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316",
+                "5461"
+              ],
+              "hocId": "2502",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "1457",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316",
+                "5461",
+                "6009"
+              ],
+              "hocId": "3221",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "2556",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316",
+                "5461",
+                "6009",
+                "1457"
+              ],
+              "hocId": "1591",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "3858",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316",
+                "5461",
+                "6009",
+                "1457",
+                "2556"
+              ],
+              "hocId": "9706",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "3916",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316",
+                "5461",
+                "6009",
+                "1457",
+                "2556",
+                "3858"
+              ],
+              "hocId": "5259",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            },
+            {
+              "tceId": "3864",
+              "prevTceIds": [
+                "3016",
+                "140",
+                "9511",
+                "8518",
+                "2886",
+                "4605",
+                "8316",
+                "5461",
+                "6009",
+                "1457",
+                "2556",
+                "3858",
+                "3916"
+              ],
+              "hocId": "6186",
+              "tocId": null,
+              "shipmentId": "1946",
+              "mass": 82.4734078549868,
+              "co2eWTW": null,
+              "co2eTTW": null,
+              "transportActivity": null,
+              "distance": null
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "tocData": [
+    {
+      "tocId": "3255",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "83",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    },
+    {
+      "tocId": "5776",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "71",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    },
+    {
+      "tocId": "3744",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "99",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    },
+    {
+      "tocId": "9489",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "53",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    },
+    {
+      "tocId": "9365",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "46",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    },
+    {
+      "tocId": "3209",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "32",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    },
+    {
+      "tocId": "1693",
+      "certifications": [],
+      "description": "None",
+      "mode": "road",
+      "loadFactor": "1",
+      "emptyDistanceFactor": "1",
+      "temperatureControl": "None",
+      "truckLoadingSequence": "None",
+      "airShippingOption": null,
+      "flightLength": null,
+      "energyCarriers": [],
+      "co2eIntensityWTW": "20",
+      "co2eIntensityTTW": "None",
+      "transportActivityUnit": "None"
+    }
+  ],
+  "hocData": [
+    {
+      "hocId": "7801",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "89",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    },
+    {
+      "hocId": "2502",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "90",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    },
+    {
+      "hocId": "3221",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "81",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    },
+    {
+      "hocId": "1591",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "91",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    },
+    {
+      "hocId": "9706",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "88",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    },
+    {
+      "hocId": "5259",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "97",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    },
+    {
+      "hocId": "6186",
+      "passhubType": "None",
+      "energyCarriers": [],
+      "co2eIntensityWTW": "62",
+      "co2eIntensityTTW": "None",
+      "hubActivityUnit": "None"
+    }
+  ],
+  "signedSensorData": [
+    {
+      "tceId": "3016",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA03dDJXLccHe+I2YTtv7q\n6kkjg+WuyGtQ7TRbneITrtOGXjFv1yDXivcm5WmjCfy1jmwOSphY4i6Eiu4Eoa4/\n0hnLXOX17jXQcgWhD9ZlYifSOgQnd6Mvfgl8txgcnGf0+VfiDpcqFxg1DdyCbk41\nAYymKgWeBtRZUq8uKKkzdd6xUJ0cngOz2W0OHWT4LIvtYEvpvrzd9RR50ti1hD+Z\nphAksG0QU8bLShxvCK3OVnyMnDwmRo1kAhq8vRkMHWluMQM8eCFxzD8/5q/4bz6P\ne0rKDZcJkW1K/5Dj9ltMFnxxr44Qk+qxdNf5jxGqohGcOHGDJjP3HAMEJfi62Ufl\ndQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "VnslPXqT/MspoyjSsvTFdPRuknUMiM6724w8jFL6usxyDxdNE52c4kcKYsVybsJMGAH+YjWtJYBpY6IQ6j1aoeuCr4zbETwfeS0VEe3zNRfPGEJSNxVn7vebNtOMOLn73cev4mHsqfxHHli2EvsPhcRz/uDwlqLekdxCijKWHLnNl9EUGZ09NfUHMECDXSB2Lfv6RqpSECzNzqSudsR4/PTOVYGZ5CbZC5flAAovLW2SBiTStMZRLjkhBZDj/op/Q1FuSTmaPQCL1td82lnY//p80edYa/n0pZIK0YXJZKBF47VWiuwFVkAnN4pIJx8g/mXzD0dpdY7UNBZ+3KMBgQ==",
+      "sensorData": {
+        "distance": {
+          "actual": 903.670242,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "9v5pMtStRaoFHBdH09HmQC2X9Pxmn6baYEg0M/EiYSk=",
+      "salt": "y+EktXHHt3H/ZMakPly+9lPgY5yGbpyeziDq7KhoRco="
+    },
+    {
+      "tceId": "140",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAl/piM5MyuChJhBJ0KseR\nZg0SaGjpdYMGSoPwZ6dxtpCAJiqo3jQSsPai27gHKeSi6zmsXuMRrbeZGoXJbmNe\nSLEAO8C/3bG5z/AWT5mqgNDanrV5qlN2v0sTEpTCBueYvE30wQsvyJZCoww1Ifx9\nwt4cuizlb2111UTdWsdF+FfUtoifNBVExPqu+BpgF0Dyf/VnYSd9TdVYOW6jQM4I\nGFgU7tSEkQFIwFj6K8fXxaDsf6+l3bzeEFOqH4q+VQmX4pF3LrfN6d9LEDElQS1D\n/o0e0fGsgHETI2thw3x/UIkkUyxeWMK1ehAUK67YAWiNelR5t8RADsvqX8E7NMvF\nYwIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "M3lslMbN0AjN4ojheyOvXxNrtik0YRZ5XO/cmUTAfx8BeiNMt2tCTFp6AOWJhdBpSQRFHkF1v1ZzKOYokWXgBwT1oKlCkZ2IH8wtZBY6Iql2dh01kn9sQ2xYk/qqN7h3dxozuVlrkObTo+54/az+iJtC6ADRlUTp2tDQgt5tBS4U02+Sl1vcnS69OqO2JU5bMjfOpC4dlmGKbekO47JQngJLjiQVOkMjvi0KM8t/I2HanJ1tuQRnnxQc9/cK+EGR3fITBERc5Pt7LGV0KGR54gOUyiaZq4JFA6fDxCLIh68dN88T83kH1CrQDUiiGGfOT4WymVWGTOQuJcee5lyBxw==",
+      "sensorData": {
+        "distance": {
+          "actual": 981.722314,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "FDjAioWJtmRCYOMQ4pKagrgOp0NtD2DWLzbyu7+C+nc=",
+      "salt": "Ve7fJw5R9j7GM8vfAWEzBIOEdJl7kH7VJdjYFvifd/A="
+    },
+    {
+      "tceId": "9511",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyP0z7zxs13q30OidMNTk\n2Lw1UeZ+6ciOElbb7Tnew9ryAiR1/f9VZH0AZb5n3I4HUveROi0gTWppQ8LqXK8u\n1gyhyGK25Y08TKQBereySV4CMqxAy5qdgp7/Yff4NXvmmyz89RxETGG6sZi4vik8\nYxz/9MsB8JEXSHSotBJNW2Ka5g01fcjCEV2IJvjwmVuLq7gWDrrlSZXs1TF0cVeQ\nONLYDj3pWKZbbPUWnQ6vrux4u6NrSZLhJWFyPUozc4jsj++m7myIxCSSadUMqJ0z\n5O+pIkahfLx0UfOnRS4aNzG/YqwXNQVLTyOlwg2kEVlWhs7oVQ/jLVs+iabj9Uqk\nTQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "n42TeTfbvRJ0y8PLEG8JNDivGG/N0piECHuajLelouGXCf7TNhrPuYrRGVodby0l3o84gXfBTlyjmppQyrDmRLsfGQ0AqZYH/w/3OYMOigxIxCwL6j6J+UwQxCJ62JXNPwkaiZAdhEny57QhTFUIbtOH/sX3ltnSaLbtgVAJIGeXfgnElo6dfb0/mKZGZWkMPPjUlgRYN7adGpjdvfndEaYMNkGLmglnf6MhR664VGQBG3ZKntxB7urvbTyUKYUklXyGDTLzaYKmptBqN+cbbVJmqijRxgp0omu83nFz5y/4gw11ZbBx0RqyD8tXhYufEVPA/nDirucUfVessto6+Q==",
+      "sensorData": {
+        "distance": {
+          "actual": 100.642691,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "c43rtp0pcGSYLz7rPWFwnkXdgg5zkFiXXdrib+76ix8=",
+      "salt": "uz/D+zW8/Rz13keY+e3ybVJDkpbRfnqHriDL0TqrYSg="
+    },
+    {
+      "tceId": "8518",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwmXmpbn8r/k+PRekIFQ7\nVtZkw72VYqMiQfPRpm3rYqPyv2z/TTaEyXUvRjbzP+RTTQO9zAYB9NINwb7iVbgP\nrzt1xyvgzZ8jMZOYRpMchnp/Z7JypiRv8p6lfAiHcM1jtUsMo7V1+AqTy56ZAteD\n2mrE2CqchRZGLOktn+uXrQNsXmz7AA7SOKTDOsnirtqS0tOQqbOAqD4PdJWrZs/r\n8tRoT/5fZZ74cRcmbTCaVFbzR56qNMDtDBjeXuWcy0BaDK6khh7yTkDLcX4w1KGv\nEsqBijf+3kjMvl5uHl2t07w4VK1iuJP1L9XoxFKGYbbMJ/EELbMyn724ozCCzO63\n9QIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "VXgabXv3d5ZgT292gMFgjJ5FC4uQvU8So9DfXqyF5EKOlxQnKCTBHuQA1W+D8Qdmj1TpB4iENhwxi1haGsJScQK1kj9UhbFAAGNvuEe2jNjZk5it9CacOMV+5Cx489r3KCKWzs2JFXhYtCPO0zKp0IUsr83t53pamLTuTVIX4M87gi9wZzOHzD91iLvIdyCZsQFvRU0Zyp0IB5GCi0tU60K1RQI2n62NmafQDb6Rr7H5rd3OLQXLpQsXJQO8Kb4ehR3IJ8vOSgo6O3hPRAl8rdSsATlCZd3sVfFi0ScSNZh1/T4/SGKAbxSiU1Z2DxbzW/mFREUyXGFtLq7o4p1YbQ==",
+      "sensorData": {
+        "distance": {
+          "actual": 164.209355,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "HamZ821b3164hqghBpAu3ldRXYWc9ZIGiNo5h+9wlrE=",
+      "salt": "KbUkAe88TaDtwnOYLeey3UnMRWzAM3VdHQKcaTA6+wM="
+    },
+    {
+      "tceId": "2886",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6oNfWZeFcFvacOa6ywKw\n8C5OcOSG8JJaKz6Cc3cDUYUy9vZ+PFNq2XDF9NnqQUrrDvdsH1HDft9DsgADx53e\nFxsRgIH0MmrP2LW2CzI7kTGZm8t0skJvuFd8f/Sfo8gcZdQ0Ij8Y8GhiXuych54a\nvACrCnDvd6hCIsIaDtBlgjRk2lVJ8bgWZ5vamvTQad9VsVXv/tvYWXnLOGKgguj1\nFX04dqQn6DWsh5oQqzeoSsicXF8zGpMlYwYnHLs70QPlPJM1O9eTRuu6E4hxejaQ\n4XCuzpxp4LIfZ9tU4ILHg1QpqEvDlDg7j5CqQdY6+Gj2KaJpmuUo9y6H4b7Jo9+7\nrQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "ZsToXfTneyRAK08b1uhXFk7PN2VvOnU0FoRQn3y3dwY2hf2EbLBrilZP3KVlJ6bQbLsm05dSfGS1GayYBATGjQFXI6+ZL3TGcdr1TIJwaHDMGnLziDP/PItBmq1fjytToDF6JZMJZ/jRyi1IPYGkRa5Hgot7r82V2ZG7ImljATxLV+dA3b/CQULAuBklaFmMkFNcYgWsnEXRHO5xiYKxZUcFlYTKqjhYYsMzqYI4/k64dstzNPRc1p1GR5/64nSSg9DB3jULAfyBJaWCs8EN0waCERDBJUsiOVYsfe2/un7OZMY3jHgLiRUiFUzjiZUxkUG3e6xI5UIxwqCEPh2PIQ==",
+      "sensorData": {
+        "distance": {
+          "actual": 282.488869,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "V0X/iA4Ioen/R7ep4ZInBspMep9hKy14mnKXFnq5QrM=",
+      "salt": "EUNaJwcYKxKBuvqW/RvKwI4emMxAgSpJu/1r2ojBSsU="
+    },
+    {
+      "tceId": "4605",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA20ZGhGH4IToj796aRapd\nw+iSzv1VBJF4PF6BaHYF3PKKqG1Q0SPLkmLqHUUYzLvaGSum+iiV8D+G/ZAXtzuk\njV/iCdhYmAFD92JwKAOIByPOjrrxrCKs0GJ6ShGVwyZnvp9mj+IqVc7df/NASPOn\nuFSKlbBigEJxyi315JWVr96sEgZ7ct9k+YDKZYU0EC67tcKnmkH+Z2FKoZUFpV5P\nTaot7/QwkooCCYAm2vWf6A658oYhk/s+njzm3vPG4n19UbBGCfjYj8MoYRUhg2CL\nmcuEtV/a1x5zKBmL/UY2GK7/n0e/zoP0w0jc0g4gT3+gS50VNDYWvVvarNGKfjZA\nwQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "NbiRUip7BKw/KyGcKBITx127lxWxscmnEVciD/91ylWSNHv6F8UfJFE4JjtH6PdCm0zQpK+hbtbuocSGTQODqvS70I4C2eVcu/N6pT1XiBQkqWkQtYguQlsNFfchB/YIEkoWtN1LaKHwCoIapi+/JMrDSub39sHn7t+r4h459K8KzvQzrKzYgQdGRiYc0qLJE7KJnFhdeyfoHenx3sHckRKyaWoo8CJ2LCJBWuyjz4SiiiEZia6L4KPmsVV8oEmep3OmSEU+G6MCs0MgZ1J5/wQ00e6fzDK0XOcLDq5WMW2J76XK89Smdwtu0mzKqmZV1dEnqKzZPFVvyig0R0nFjw==",
+      "sensorData": {
+        "distance": {
+          "actual": 548.755575,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "sKsqQWojyFjemBmN3XvTznnp8HmDQebjFsFO69EpgHQ=",
+      "salt": "ROVOLdq5SzvDnyM2ixWVjkJc1O+zztLLAt+nSdFeZZQ="
+    },
+    {
+      "tceId": "8316",
+      "sensorkey": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA10lzMHsQZJSxG1jZALQ2\nrxXJJiYL7/v72tif2ubgNtAIQkwwbfaWGG9VDY2VJiZW0B2VHXJQg/cL3EHON/iO\nxfY3UCNFoHQzlOvIhfP+mn4baB3ioatgao9OTP+1Wc6GdYiKvsypozYC11VWlfhW\nAubw3P3eN95jzu44HaL3gcnB0hxvQbg1bsMJtSVTrA2UoV8zJ3ft4V1UlWQW7ujp\nn3RTHU00iaA8JkXbyKx3yUhmFjieszsbUY1YiJy5zguwyU6KPazlzPhTR+NMQhV/\nYRYV7WyB2+SpHtvIl7VqW1rymp2/jtvV1LwMu+lND2P2y1+Fny1X7hTPT0NA8Hwe\nuQIDAQAB\n-----END PUBLIC KEY-----\n",
+      "signedSensorData": "yJ/4wKw+JaIvi34+sYXGK72W8ZenL6RqzG+Y3Lv+s5qt9knyvdFuHLvDx3pp6cDWU92EPqLVsKl2akDBQoWbtVHChev9Tf12Vv/KMDf7LjjJ/AMuczqow1DEMOXda7nuHTP5fYbDccCSjSt1R6EAgYm34w54SRzMCo1Yua7t9FXmdwWYbMc48YTqI6RMfJFlg9FvfL5X2+CJLl8/6OSjTQr4Rdt5iemCgO9fIzPLZVi6kVIYXRlCohpIjZR4vhlAKUesCrwi4MIU0blkqD9BJid4jXkBL8GnY5qVWS4Nhd5P2DTw4R6s8tqu7srOTlVpFSAzqmTBIKef5iRwQlGu9A==",
+      "sensorData": {
+        "distance": {
+          "actual": 434.67653,
+          "gcd": null,
+          "sfd": null
+        }
+      },
+      "commitment": "FZ4Yfm6qnUKPr9NRTT6tYaU7aiaBeWYXWvgyUL2Bda0=",
+      "salt": "ob/ETdp9h+EQcPBobL8L3nxx6w78m6P8LZd8ycHaUVg="
+    }
+  ],
+  "proof": []
+}
