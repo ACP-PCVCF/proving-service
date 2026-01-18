@@ -156,38 +156,43 @@ impl RunDataCollector {
         fs::create_dir_all(output_dir)?;
 
         let csv_filename = format!("{}.csv", self.test_name);
-        let csv_path = output_dir.join(csv_filename);
+        let csv_path = output_dir.join(&csv_filename);
+        let tmp_filename = format!("{}.tmp", self.test_name);
+        let tmp_path = output_dir.join(&tmp_filename);
 
-        let file = File::create(&csv_path)?;
-        let mut wtr = csv::Writer::from_writer(file);
+        {
+            let file = File::create(&tmp_path)?;
+            let mut wtr = csv::Writer::from_writer(file);
 
-        wtr.write_record(&[
-            "run_id",
-            "proof_time",
-            "total_time",
-            "input_size",
-            "output_size",
-            "paging_cycles",
-            "user_cycles",
-            "reserved_cycles",
-            "total_cycles",
-        ])?;
+            wtr.write_record(&[
+                "run_id",
+                "proof_time",
+                "total_time",
+                "input_size",
+                "output_size",
+                "paging_cycles",
+                "user_cycles",
+                "reserved_cycles",
+                "total_cycles",
+            ])?;
 
-        for metrics in &self.data {
-            wtr.serialize((
-                metrics.run_id,
-                metrics.proof_time,
-                metrics.total_time,
-                metrics.input_size,
-                metrics.output_size,
-                metrics.paging_cycles,
-                metrics.user_cycles,
-                metrics.reserved_cycles,
-                metrics.total_cycles,
-            ))?;
+            for metrics in &self.data {
+                wtr.serialize((
+                    metrics.run_id,
+                    metrics.proof_time,
+                    metrics.total_time,
+                    metrics.input_size,
+                    metrics.output_size,
+                    metrics.paging_cycles,
+                    metrics.user_cycles,
+                    metrics.reserved_cycles,
+                    metrics.total_cycles,
+                ))?;
+            }
+            wtr.flush()?;
         }
 
-        wtr.flush()?;
+        fs::rename(&tmp_path, &csv_path)?;
         println!("Saved CSV: {}", csv_path.display());
 
         Ok(())
@@ -236,7 +241,7 @@ impl DocumentGenerator {
     }
 
     pub fn generate_proving_document_random(&mut self) -> ProofingDocument {
-        let n: u32 = self.rng.gen_range(1..5);
+        let n: u32 = self.rng.gen_range(5..9);
         let m: u32 = n.saturating_sub(self.rng.gen_range(0..3));
         println!("Generating document with n: {}, m: {}", n, m);
         self.generate_proving_document(n, m)

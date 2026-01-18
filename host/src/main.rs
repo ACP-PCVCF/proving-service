@@ -467,10 +467,10 @@ mod tests {
                 let json_string = serde_json::to_string_pretty(resp)?;
                 file.write_all(json_string.as_bytes())?;
             }
+            collector
+                .write_to_csv_with_path(&benchmark_dir)
+                .expect("Failed to write metrics to CSV");
         }
-        collector
-            .write_to_csv_with_path(&benchmark_dir)
-            .expect("Failed to write metrics to CSV");
         Ok(())
     }
 
@@ -601,6 +601,10 @@ mod tests {
                 file.write_all(json_string.as_bytes())?;
             }
 
+            collector
+                .write_to_csv_with_path(&benchmark_dir)
+                .expect("Failed to write metrics to CSV");
+
             previous_proofs.push(response.unwrap().clone());
         }
 
@@ -700,6 +704,10 @@ mod tests {
             let json_string = serde_json::to_string_pretty(&response)?;
             file.write_all(json_string.as_bytes())?;
 
+            collector
+                .write_to_csv_with_path(&benchmark_dir)
+                .expect("Failed to write metrics to CSV");
+
             proofs.insert(i, response);
         }
 
@@ -746,6 +754,10 @@ mod tests {
                 let json_string = serde_json::to_string_pretty(&response)?;
                 file.write_all(json_string.as_bytes())?;
 
+                collector
+                    .write_to_csv_with_path(&benchmark_dir)
+                    .expect("Failed to write metrics to CSV");
+
                 proofs.insert(doc_index, response);
             }
 
@@ -757,9 +769,6 @@ mod tests {
         println!("\nTree aggregation complete");
         println!("Perfect binary tree: {} documents, {} levels", total_documents, current_level + 1);
 
-        collector
-            .write_to_csv_with_path(&benchmark_dir)
-            .expect("Failed to write metrics to CSV");
         Ok(())
     }
 

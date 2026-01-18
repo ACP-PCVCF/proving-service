@@ -2,19 +2,25 @@
 set -e
 
 NUM_DOCS=15
-BOTH_GUESTS=false
+MODE="lazy"
 
-while getopts "n:bh" opt; do
+while getopts "n:m:h" opt; do
   case $opt in
     n) NUM_DOCS=$OPTARG ;;
-    b) BOTH_GUESTS=true ;;
+    m) MODE=$OPTARG ;;
     h)
-      echo "Usage: $0 [-n NUM_DOCS] [-b]"
+      echo "Usage: $0 [-n NUM_DOCS] [-m MODE]"
       echo "  -n  Number of documents (default: 15, must be 2^k-1 for tree)"
-      echo "  -b  Run both lazy and baseline guests"
+      echo "  -m  Mode: both, lazy, or baseline (default: lazy)"
       exit 0 ;;
   esac
 done
+
+# Validate mode
+if [[ "$MODE" != "both" && "$MODE" != "lazy" && "$MODE" != "baseline" ]]; then
+  echo "Error: Mode must be 'both', 'lazy', or 'baseline'"
+  exit 1
+fi
 
 [ ! -f "Cargo.toml" ] && echo "Run from project root" && exit 1
 
@@ -38,10 +44,12 @@ run_benchmarks() {
     cargo test bench_tree_aggregation -- --ignored --nocapture
 }
 
-export USE_BASELINE_GUEST=false
-run_benchmarks "lazy guest"
+if [[ "$MODE" == "lazy" || "$MODE" == "both" ]]; then
+    export USE_BASELINE_GUEST=false
+    run_benchmarks "lazy guest"
+fi
 
-if [ "$BOTH_GUESTS" = true ]; then
+if [[ "$MODE" == "baseline" || "$MODE" == "both" ]]; then
     export USE_BASELINE_GUEST=true
     run_benchmarks "baseline guest"
 fi
