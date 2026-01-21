@@ -1,0 +1,22 @@
+[package]
+name = "guest_baseline_precompiles"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+risc0-zkvm = { version = "3.0.4", default-features = false, features = [
+    'std',
+] }
+proving_service_core = { path = "../../core" }
+
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+# Use RISC Zero's patched cryptography crates with precompile support
+rsa = { git = "https://github.com/risc0/RustCrypto-RSA", tag = "v0.9.6-risczero.0" }
+rand = "0.8"
+sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }
+base64 = "0.21"
+pem = "1.0"
+pkcs1 = "0.7"
+serde_json = "1.0"
+
+bincode = "1.3"

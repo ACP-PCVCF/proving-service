@@ -6,19 +6,16 @@ use proving_service_core::sig_container::SignatureContainer;
 use risc0_zkvm::guest::env;
 use risc0_zkvm::Journal;
 use risc0_zkvm::sha::Digest;
-use risc0_zkvm::guest::sha::Impl as Sha256Impl;
-use risc0_zkvm::guest::sha::rust_crypto::Sha256;
-use sha2::Digest as Sha2DigestTrait;
+use sha2::{Sha256, Digest as Sha2Digest};
 use base64::{ engine::general_purpose, Engine as _ };
 use std::{ * };
 use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
-use sha2::digest::Update;
 
 fn hash(data: &str) -> String {
-    let mut hasher = Sha256::<Sha256Impl>::new();
-    Update::update(&mut hasher, data.as_bytes());
+    let mut hasher = Sha256::new();
+    hasher.update(data.as_bytes());
     let computed_hash = hasher.finalize();
     let computed_hash_b64 = general_purpose::STANDARD.encode(&computed_hash);
     return computed_hash_b64

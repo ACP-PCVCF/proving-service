@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "methods", "methods/guest", "methods/guest_baseline", "core"]
+members = ["host", "methods", "methods/guest", "methods/guest_baseline", "methods/guest_baseline_precompiles", "core"]
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
@@ -9,8 +9,3 @@ opt-level = 3
 [profile.release]
 debug = 1
 lto = true
-
-# Use RISC Zero's patched cryptography crates with precompile support
-[patch.crates-io]
-rsa = { git = "https://github.com/risc0/RustCrypto-RSA", tag = "v0.9.6-risczero.0" }
-sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }

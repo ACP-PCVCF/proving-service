@@ -1,6 +1,7 @@
 use methods::{
     GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID,
-    GUEST_BASELINE_ELF, GUEST_BASELINE_ID
+    GUEST_BASELINE_ELF, GUEST_BASELINE_ID,
+    GUEST_BASELINE_PRECOMPILES_ELF, GUEST_BASELINE_PRECOMPILES_ID
 };
 
 use base64::{engine::general_purpose, Engine as _};
@@ -142,12 +143,19 @@ async fn main_proving_logic(
     let prover = default_prover();
 
     // Choose guest based on environment variable
+    let use_baseline_precompiles = std::env::var("USE_BASELINE_PRECOMPILES_GUEST")
+        .unwrap_or_else(|_| "false".to_string())
+        .to_lowercase() == "true";
+
     let use_baseline = std::env::var("USE_BASELINE_GUEST")
         .unwrap_or_else(|_| "false".to_string())
         .to_lowercase() == "true";
 
-    let (guest_elf, guest_id) = if use_baseline {
-        println!("Using BASELINE guest (full signature verification)");
+    let (guest_elf, guest_id) = if use_baseline_precompiles {
+        println!("Using BASELINE PRECOMPILES guest (full signature verification with precompiles)");
+        (GUEST_BASELINE_PRECOMPILES_ELF, GUEST_BASELINE_PRECOMPILES_ID)
+    } else if use_baseline {
+        println!("Using BASELINE guest (full signature verification without precompiles)");
         (GUEST_BASELINE_ELF, GUEST_BASELINE_ID)
     } else {
         println!("Using LAZY guest (lazy signature verification)");
@@ -419,10 +427,15 @@ mod tests {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            "bench_composition_baseline"
+        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
+
+        let (test_name, dir_name) = if use_baseline_precompiles {
+            ("bench_composition_baseline_precompiles", "composition_baseline_precompiles")
+        } else if use_baseline {
+            ("bench_composition_baseline", "composition_baseline")
         } else {
-            "bench_composition_lazy"
+            ("bench_composition_lazy", "composition_lazy")
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut response: Option<ProductProof> = None;
@@ -430,11 +443,7 @@ mod tests {
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let composition_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            benchmark_dir.join("composition_baseline")
-        } else {
-            benchmark_dir.join("composition_lazy")
-        };
+        let composition_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&composition_dir)?;
 
         println!("Running composition benchmark with {} documents from {}...", n, benchmark_dir.display());
@@ -484,10 +493,15 @@ mod tests {
             .unwrap_or(15);
 
         let mut generator = DocumentGenerator::new();
-        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            "bench_aggregation_baseline"
+        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
+
+        let (test_name, dir_name) = if use_baseline_precompiles {
+            ("bench_aggregation_baseline_precompiles", "aggregation_baseline_precompiles")
+        } else if use_baseline {
+            ("bench_aggregation_baseline", "aggregation_baseline")
         } else {
-            "bench_aggregation"
+            ("bench_aggregation", "aggregation")
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
@@ -495,11 +509,7 @@ mod tests {
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let aggregation_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            benchmark_dir.join("aggregation_baseline")
-        } else {
-            benchmark_dir.join("aggregation")
-        };
+        let aggregation_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&aggregation_dir)?;
 
         println!("Running aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
@@ -559,10 +569,15 @@ mod tests {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            "bench_proofaggregation_baseline"
+        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
+
+        let (test_name, dir_name) = if use_baseline_precompiles {
+            ("bench_proofaggregation_baseline_precompiles", "proof_aggregation_baseline_precompiles")
+        } else if use_baseline {
+            ("bench_proofaggregation_baseline", "proof_aggregation_baseline")
         } else {
-            "bench_proofaggregation_lazy"
+            ("bench_proofaggregation_lazy", "proof_aggregation_lazy")
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut previous_proofs: Vec<ProductProof> = Vec::new();
@@ -570,11 +585,7 @@ mod tests {
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let proof_aggr_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            benchmark_dir.join("proof_aggregation_baseline")
-        } else {
-            benchmark_dir.join("proof_aggregation_lazy")
-        };
+        let proof_aggr_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&proof_aggr_dir)?;
 
         println!("Running proof aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
@@ -662,21 +673,22 @@ mod tests {
         // Calculate number of leaves
         let num_leaves: u32 = (total_documents + 1) / 2;
 
-        let test_name = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            "bench_tree_aggregation_baseline"
+        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
+
+        let (test_name, dir_name) = if use_baseline_precompiles {
+            ("bench_tree_aggregation_baseline_precompiles", "tree_aggregation_baseline_precompiles")
+        } else if use_baseline {
+            ("bench_tree_aggregation_baseline", "tree_aggregation_baseline")
         } else {
-            "bench_tree_aggregation_lazy"
+            ("bench_tree_aggregation_lazy", "tree_aggregation_lazy")
         };
         let mut collector = RunDataCollector::new(test_name);
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
         let base_docs_dir = benchmark_dir.join("base_documents");
-        let tree_aggr_dir = if env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true" {
-            benchmark_dir.join("tree_aggregation_baseline")
-        } else {
-            benchmark_dir.join("tree_aggregation_lazy")
-        };
+        let tree_aggr_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&tree_aggr_dir)?;
 
         // Map to store proofs by document index

@@ -11,14 +11,15 @@ while getopts "n:m:h" opt; do
     h)
       echo "Usage: $0 [-n NUM_DOCS] [-m MODE]"
       echo "  -n  Number of documents (default: 15, must be 2^k-1 for tree)"
-      echo "  -m  Mode: both, lazy, or baseline (default: lazy)"
+      echo "  -m  Mode: all, lazy, baseline, baseline_precompiles, or combinations (default: lazy)"
+      echo "       Examples: -m lazy, -m baseline, -m baseline_precompiles, -m all"
       exit 0 ;;
   esac
 done
 
 # Validate mode
-if [[ "$MODE" != "both" && "$MODE" != "lazy" && "$MODE" != "baseline" ]]; then
-  echo "Error: Mode must be 'both', 'lazy', or 'baseline'"
+if [[ "$MODE" != "all" && "$MODE" != "lazy" && "$MODE" != "baseline" && "$MODE" != "baseline_precompiles" ]]; then
+  echo "Error: Mode must be 'all', 'lazy', 'baseline', or 'baseline_precompiles'"
   exit 1
 fi
 
@@ -44,14 +45,22 @@ run_benchmarks() {
     cargo test bench_tree_aggregation -- --ignored --nocapture
 }
 
-if [[ "$MODE" == "lazy" || "$MODE" == "both" ]]; then
+if [[ "$MODE" == "lazy" || "$MODE" == "all" ]]; then
     export USE_BASELINE_GUEST=false
-    run_benchmarks "lazy guest"
+    export USE_BASELINE_PRECOMPILES_GUEST=false
+    run_benchmarks "lazy guest (no precompiles)"
 fi
 
-if [[ "$MODE" == "baseline" || "$MODE" == "both" ]]; then
+if [[ "$MODE" == "baseline" || "$MODE" == "all" ]]; then
     export USE_BASELINE_GUEST=true
-    run_benchmarks "baseline guest"
+    export USE_BASELINE_PRECOMPILES_GUEST=false
+    run_benchmarks "baseline guest (no precompiles)"
+fi
+
+if [[ "$MODE" == "baseline_precompiles" || "$MODE" == "all" ]]; then
+    export USE_BASELINE_GUEST=false
+    export USE_BASELINE_PRECOMPILES_GUEST=true
+    run_benchmarks "baseline guest (with precompiles)"
 fi
 
 LATEST=$(ls -1 benchmarks/documents/ | grep "^benchmark_" | sort | tail -n 1)

@@ -7,18 +7,19 @@ use risc0_zkvm::guest::env;
 use risc0_zkvm::Journal;
 use risc0_zkvm::sha::Digest;
 use risc0_zkvm::guest::sha::Impl as Sha256Impl;
-use risc0_zkvm::guest::sha::rust_crypto::Sha256 as Sha256Risc0;
-use sha2::{Sha256, Digest as Sha2Digest};
+use risc0_zkvm::guest::sha::rust_crypto::Sha256;
+use sha2::Digest as Sha2DigestTrait;
 use base64::{ engine::general_purpose, Engine as _ };
 use std::{ * };
 use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
+use sha2::digest::Update;
 use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
 
 fn hash(data: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(data.as_bytes());
+    let mut hasher = Sha256::<Sha256Impl>::new();
+    Update::update(&mut hasher, data.as_bytes());
     let computed_hash = hasher.finalize();
     let computed_hash_b64 = general_purpose::STANDARD.encode(&computed_hash);
     return computed_hash_b64
@@ -40,8 +41,8 @@ fn verify_signature_in_guest(commitment: &str, signed_sensor_data: &str, sensork
     };
 
     // Hash the commitment
-    let mut hasher = Sha256Risc0::<Sha256Impl>::new();
-    hasher.update(commitment.as_bytes());
+    let mut hasher = Sha256::<Sha256Impl>::new();
+    Update::update(&mut hasher, commitment.as_bytes());
     let digest_val = hasher.finalize();
 
     // Decode signature from base64
@@ -54,7 +55,7 @@ fn verify_signature_in_guest(commitment: &str, signed_sensor_data: &str, sensork
     };
 
     // Verify signature
-    let padding = rsa::Pkcs1v15Sign::new::<Sha256Risc0::<Sha256Impl>>();
+    let padding = rsa::Pkcs1v15Sign::new::<Sha256::<Sha256Impl>>();
     match public_key.verify(padding, &digest_val, &signature) {
         Ok(_) => {
             env::log("Guest Baseline: Signature verified successfully");
