@@ -57,7 +57,7 @@ pub struct ProductProof {
     pub proofReceipt: String,
     pub pcf: f64,
     pub proofReference: String,
-    pub imageId: String,//[u32; 8],
+    pub imageId: String, //[u32; 8],
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

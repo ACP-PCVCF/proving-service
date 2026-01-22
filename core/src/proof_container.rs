@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
-use serde::{Deserialize, Serialize};
 use risc0_zkvm::{sha::Digest, Journal};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProofContainer {

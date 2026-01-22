@@ -1,27 +1,26 @@
 extern crate alloc;
+use alloc::{format, string::String, vec::Vec};
+use base64::{engine::general_purpose, Engine as _};
 use bincode;
-use alloc::{ vec::Vec, string::String, format };
-use proving_service_core::proof_container::ProofContainer;
-use proving_service_core::sig_container::SignatureContainer;
-use risc0_zkvm::guest::env;
-use risc0_zkvm::Journal;
-use risc0_zkvm::sha::Digest;
-use risc0_zkvm::guest::sha::Impl as Sha256Impl;
-use risc0_zkvm::guest::sha::rust_crypto::Sha256 as Sha256Risc0;
-use sha2::{Sha256, Digest as Sha2Digest};
-use base64::{ engine::general_purpose, Engine as _ };
-use std::{ * };
-use proving_service_core::proofing_document::*;
 use proving_service_core::hoc_toc_data::*;
 use proving_service_core::product_footprint::*;
-use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
+use proving_service_core::proof_container::ProofContainer;
+use proving_service_core::proofing_document::*;
+use risc0_zkvm::guest::env;
+use risc0_zkvm::guest::sha::rust_crypto::Sha256 as Sha256Risc0;
+use risc0_zkvm::guest::sha::Impl as Sha256Impl;
+use risc0_zkvm::sha::Digest;
+use risc0_zkvm::Journal;
+use rsa::{pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey, RsaPublicKey};
+use sha2::{Digest as Sha2Digest, Sha256};
+use std::*;
 
 fn hash(data: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data.as_bytes());
     let computed_hash = hasher.finalize();
     let computed_hash_b64 = general_purpose::STANDARD.encode(&computed_hash);
-    return computed_hash_b64
+    return computed_hash_b64;
 }
 
 fn verify_signature_in_guest(commitment: &str, signed_sensor_data: &str, sensorkey: &str) -> bool {
@@ -54,7 +53,7 @@ fn verify_signature_in_guest(commitment: &str, signed_sensor_data: &str, sensork
     };
 
     // Verify signature
-    let padding = rsa::Pkcs1v15Sign::new::<Sha256Risc0::<Sha256Impl>>();
+    let padding = rsa::Pkcs1v15Sign::new::<Sha256Risc0<Sha256Impl>>();
     match public_key.verify(padding, &digest_val, &signature) {
         Ok(_) => {
             env::log("Guest Baseline: Signature verified successfully");
@@ -78,10 +77,16 @@ fn process_proof_containers(
         let journal: Journal = proof_container.journal.clone();
 
         env::verify(image_id.clone(), journal.bytes.as_slice()).unwrap();
-        env::log(&format!("Guest Baseline: Image ID verified successfully: {}", image_id));
+        env::log(&format!(
+            "Guest Baseline: Image ID verified successfully: {}",
+            image_id
+        ));
 
-        let (pcf, _): (f64, Vec<u8>) = journal.decode().expect("Failed to decode journal");
-        env::log(&format!("Guest Baseline: PCF value from previous proof: {}", pcf));
+        let pcf: f64 = journal.decode().expect("Failed to decode journal");
+        env::log(&format!(
+            "Guest Baseline: PCF value from previous proof: {}",
+            pcf
+        ));
 
         current_transport_pcf = pcf + current_transport_pcf;
     }
@@ -111,10 +116,8 @@ fn main() {
     for tce in tces {
         if tce.tocId.is_some() {
             if let Some(distance) = &tce.distance {
-                let emission_factor: f64 = emission_factor_toc(
-                    &product_footprint.tocData,
-                    tce.tocId.clone().unwrap()
-                );
+                let emission_factor: f64 =
+                    emission_factor_toc(&product_footprint.tocData, tce.tocId.clone().unwrap());
 
                 let emissions: f64 = tce.mass * emission_factor * distance.actual;
 
@@ -122,12 +125,22 @@ fn main() {
                 if let Some(signed_sensor_data_list) = &product_footprint.signedSensorData {
                     for signed_sensor_data in signed_sensor_data_list {
                         if signed_sensor_data.tceId == tce.tceId {
-                            let concat = format!("{}{}", serde_json::to_string(&signed_sensor_data.sensorData).unwrap(), signed_sensor_data.salt);
+                            let concat = format!(
+                                "{}{}",
+                                serde_json::to_string(&signed_sensor_data.sensorData).unwrap(),
+                                signed_sensor_data.salt
+                            );
                             let computed_hash = hash(&concat);
-                            assert!(computed_hash == signed_sensor_data.commitment, "Commitment does not match the hash of sensor data and salt");
+                            assert!(
+                                computed_hash == signed_sensor_data.commitment,
+                                "Commitment does not match the hash of sensor data and salt"
+                            );
 
                             // BASELINE: Verify signature immediately (not lazy)
-                            env::log(&format!("Guest Baseline: Verifying signature for TCE {}", tce.tceId));
+                            env::log(&format!(
+                                "Guest Baseline: Verifying signature for TCE {}",
+                                tce.tceId
+                            ));
                             let verified = verify_signature_in_guest(
                                 &signed_sensor_data.commitment,
                                 &signed_sensor_data.signedSensorData,
@@ -145,48 +158,47 @@ fn main() {
         }
 
         if tce.hocId.is_some() {
-            let emission_factor: f64 = emission_factor_hoc(
-                &product_footprint.hocData,
-                tce.hocId.clone().unwrap()
-            );
+            let emission_factor: f64 =
+                emission_factor_hoc(&product_footprint.hocData, tce.hocId.clone().unwrap());
             let emissions: f64 = tce.mass * emission_factor;
             transport_pcf += emissions;
         }
     }
 
     fn emission_factor_toc(toc_data: &Vec<TocData>, toc_id: String) -> f64 {
-        let right_toc_data: &TocData = toc_data
-            .into_iter()
-            .find(|t| { t.tocId == toc_id })
-            .unwrap();
+        let right_toc_data: &TocData = toc_data.into_iter().find(|t| t.tocId == toc_id).unwrap();
 
         let emission_factor_str: String = right_toc_data.co2eIntensityWTW.clone();
 
-        let factor = emission_factor_str.split(" ").next().unwrap().parse::<f64>().unwrap();
+        let factor = emission_factor_str
+            .split(" ")
+            .next()
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
 
         return factor;
     }
 
     fn emission_factor_hoc(hoc_data: &Vec<HocData>, hoc_id: String) -> f64 {
-        let right_hoc_data: &HocData = hoc_data
-            .into_iter()
-            .find(|t| { t.hocId == hoc_id })
-            .unwrap();
+        let right_hoc_data: &HocData = hoc_data.into_iter().find(|t| t.hocId == hoc_id).unwrap();
 
         let emission_factor_str: String = right_hoc_data.co2eIntensityWTW.clone();
 
-        let factor = emission_factor_str.split(" ").next().unwrap().parse::<f64>().unwrap();
+        let factor = emission_factor_str
+            .split(" ")
+            .next()
+            .unwrap()
+            .parse::<f64>()
+            .unwrap();
 
         return factor;
     }
 
-    env::log(&format!("Guest Baseline: Total Emissions {} kg CO2e", transport_pcf));
-    env::commit(&transport_pcf);
+    env::log(&format!(
+        "Guest Baseline: Total Emissions {} kg CO2e",
+        transport_pcf
+    ));
 
-    // BASELINE: Commit empty vector - signatures already verified inside the proof
-    let empty_sig_containers: Vec<SignatureContainer> = Vec::new();
-    let serialized_empty: Vec<u8> = bincode::serialize(&empty_sig_containers)
-        .expect("Failed to serialize empty sig_containers");
-    env::log("Guest Baseline: Committing empty signature container (signatures are already verified)");
-    env::commit(&serialized_empty);
+    env::commit(&transport_pcf);
 }

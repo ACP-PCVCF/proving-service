@@ -10,7 +10,6 @@ risc0-zkvm = { version = "3.0.4", default-features = false, features = [
 proving_service_core = { path = "../../core" }
 
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-# Use RISC Zero's patched cryptography crates with precompile support
 rsa = { git = "https://github.com/risc0/RustCrypto-RSA", tag = "v0.9.6-risczero.0" }
 rand = "0.8"
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2-v0.10.8-risczero.0" }

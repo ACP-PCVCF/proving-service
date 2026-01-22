@@ -1,23 +1,17 @@
-use base64::{ engine::general_purpose, Engine as _ };
+use base64::{engine::general_purpose, Engine as _};
+use const_oid::AssociatedOid;
+use digest::{
+    self, generic_array::GenericArray, Digest as DigestTrait, FixedOutput, FixedOutputReset,
+    OutputSizeUser, Reset, Update,
+};
+use pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey as _, ObjectIdentifier};
 use rand::rngs::OsRng;
+use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::spki;
 use rsa::RsaPrivateKey;
-use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey};
+use rsa::{pkcs1::DecodeRsaPublicKey, pkcs8::DecodePublicKey, RsaPublicKey};
+use sha2::{Digest as Sha2DigestTrait, Sha256};
 use spki::EncodePublicKey; // Import only EncodePublicKey for to_public_key_pem
-use rsa::pkcs1v15::Pkcs1v15Sign;
-use sha2::{Sha256, Digest as Sha2DigestTrait};
-use const_oid::AssociatedOid;
-use pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey as _, ObjectIdentifier};
-use digest::{
-    self,
-    Digest as DigestTrait,
-    OutputSizeUser,
-    Reset,
-    FixedOutputReset,
-    generic_array::GenericArray,
-    FixedOutput,
-    Update
-};
 
 #[derive(Default, Clone)]
 struct Sha256WithOid(Sha256);
@@ -49,12 +43,12 @@ impl Reset for Sha256WithOid {
 }
 
 impl FixedOutputReset for Sha256WithOid {
-     fn finalize_fixed_reset(&mut self) -> GenericArray<u8, Self::OutputSize> {
+    fn finalize_fixed_reset(&mut self) -> GenericArray<u8, Self::OutputSize> {
         FixedOutputReset::finalize_fixed_reset(&mut self.0)
-     }
-     fn finalize_into_reset(&mut self, out: &mut GenericArray<u8, Self::OutputSize>) {
+    }
+    fn finalize_into_reset(&mut self, out: &mut GenericArray<u8, Self::OutputSize>) {
         FixedOutputReset::finalize_into_reset(&mut self.0, out);
-     }
+    }
 }
 
 impl DigestTrait for Sha256WithOid {
@@ -75,7 +69,7 @@ impl DigestTrait for Sha256WithOid {
     }
 
     fn chain_update(self, data: impl AsRef<[u8]>) -> Self {
-         Sha256WithOid(self.0.chain_update(data))
+        Sha256WithOid(self.0.chain_update(data))
     }
 
     fn finalize_into(self, out: &mut GenericArray<u8, Self::OutputSize>) {
@@ -103,7 +97,6 @@ impl DigestTrait for Sha256WithOid {
     }
 }
 
-
 pub fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &str) -> bool {
     let payload = &commitment;
     let signature_b64 = &signed_sensor_data;
@@ -113,16 +106,19 @@ pub fn verify_signature(commitment: &str, signed_sensor_data: &str, sensorkey: &
         Ok(pk) => {
             println!("Host: Public key successfully loaded");
             pk
-        },
+        }
         Err(e) => {
             eprintln!("Fehler beim Laden des Public Keys (SPKI erwartet): {:?}", e);
             match RsaPublicKey::from_pkcs1_pem(public_key_pem) {
                 Ok(pk_fallback) => {
                     eprintln!("Warnung: Public Key wurde als PKCS#1 geladen, SPKI wird bevorzugt.");
                     pk_fallback
-                },
+                }
                 Err(e_fallback) => {
-                    eprintln!("Fehler beim Laden des Public Keys auch als PKCS#1: {:?}", e_fallback);
+                    eprintln!(
+                        "Fehler beim Laden des Public Keys auch als PKCS#1: {:?}",
+                        e_fallback
+                    );
                     return false;
                 }
             }

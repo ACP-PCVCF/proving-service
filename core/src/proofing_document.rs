@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
-use serde::{Deserialize, Serialize};
 use crate::product_footprint::ProductProof;
+use serde::{Deserialize, Serialize};
 
 use super::hoc_toc_data::{HocData, TocData};
-use super::product_footprint::{ProductFootprint, Distance};
+use super::product_footprint::{Distance, ProductFootprint};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TceSensorData {

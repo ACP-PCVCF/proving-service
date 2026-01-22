@@ -1,12 +1,11 @@
 use methods::{
-    GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID,
-    GUEST_BASELINE_ELF, GUEST_BASELINE_ID,
-    GUEST_BASELINE_PRECOMPILES_ELF, GUEST_BASELINE_PRECOMPILES_ID
+    GUEST_BASELINE_ELF, GUEST_BASELINE_ID, GUEST_BASELINE_PRECOMPILES_ELF,
+    GUEST_BASELINE_PRECOMPILES_ID, GUEST_LAZY_PRECOMPILES_ELF, GUEST_LAZY_PRECOMPILES_ID,
 };
 
 use base64::{engine::general_purpose, Engine as _};
 use chrono::Local;
-use env_helper::process_and_write_proofs;
+use env_helper::{is_baseline_guest, is_lazy_guest, process_and_write_proofs};
 use log::info;
 use proving_service_core::product_footprint::ProductProof;
 use proving_service_core::proofing_document::*;
@@ -14,6 +13,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
 use rdkafka::producer::{FutureProducer, FutureRecord};
+use risc0_zkvm::sha::Digest;
 use risc0_zkvm::{default_prover, ExecutorEnv};
 use serde_path_to_error::deserialize;
 use std::fs::File;
@@ -145,21 +145,26 @@ async fn main_proving_logic(
     // Choose guest based on environment variable
     let use_baseline_precompiles = std::env::var("USE_BASELINE_PRECOMPILES_GUEST")
         .unwrap_or_else(|_| "false".to_string())
-        .to_lowercase() == "true";
+        .to_lowercase()
+        == "true";
 
     let use_baseline = std::env::var("USE_BASELINE_GUEST")
         .unwrap_or_else(|_| "false".to_string())
-        .to_lowercase() == "true";
+        .to_lowercase()
+        == "true";
 
     let (guest_elf, guest_id) = if use_baseline_precompiles {
         println!("Using BASELINE PRECOMPILES guest (full signature verification with precompiles)");
-        (GUEST_BASELINE_PRECOMPILES_ELF, GUEST_BASELINE_PRECOMPILES_ID)
+        (
+            GUEST_BASELINE_PRECOMPILES_ELF,
+            GUEST_BASELINE_PRECOMPILES_ID,
+        )
     } else if use_baseline {
         println!("Using BASELINE guest (full signature verification without precompiles)");
         (GUEST_BASELINE_ELF, GUEST_BASELINE_ID)
     } else {
         println!("Using LAZY guest (lazy signature verification)");
-        (GUEST_PROOFING_LOGIC_ELF, GUEST_PROOFING_LOGIC_ID)
+        (GUEST_LAZY_PRECOMPILES_ELF, GUEST_LAZY_PRECOMPILES_ID)
     };
 
     println!("ELF size: {}", guest_elf.len());
@@ -179,15 +184,30 @@ async fn main_proving_logic(
     let duration = proof_start_time.elapsed();
 
     let receipt = prove_info.receipt;
+    let guest_digest = Digest::from(guest_id);
 
-    let (journal_output, _serialized_sig_containers): (f64, Vec<u8>) =
+    // Decode journal based on guest type
+    let journal_output: f64 = if is_baseline_guest(&guest_digest) {
         match receipt.journal.decode() {
             Ok(data) => data,
             Err(e) => {
                 eprintln!("Failed to decode journal: {}", e);
                 return None;
             }
+        }
+    } else if is_lazy_guest(&guest_digest) {
+        let (pcf, _sigs): (f64, Vec<u8>) = match receipt.journal.decode() {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("Failed to decode journal: {}", e);
+                return None;
+            }
         };
+        pcf
+    } else {
+        eprintln!("Unknown guest type");
+        return None;
+    };
 
     if let Err(e) = receipt.verify(guest_id) {
         eprintln!("Receipt verification failed: {}", e);
@@ -277,7 +297,11 @@ mod tests {
 
     use super::handle_kafka_message;
     use proving_service_core::product_footprint::ProductProof;
-    use rdkafka::{consumer::{Consumer as _, StreamConsumer}, producer::{FutureProducer, FutureRecord}, ClientConfig, Message as _};
+    use rdkafka::{
+        consumer::{Consumer as _, StreamConsumer},
+        producer::{FutureProducer, FutureRecord},
+        ClientConfig, Message as _,
+    };
     use std::{
         env,
         fs::{self, File},
@@ -296,14 +320,19 @@ mod tests {
         let mut folders: Vec<PathBuf> = fs::read_dir(base_dir)?
             .filter_map(|entry| entry.ok())
             .map(|entry| entry.path())
-            .filter(|path| path.is_dir() && path.file_name()
-                .and_then(|n| n.to_str())
-                .map(|s| s.starts_with("benchmark_"))
-                .unwrap_or(false))
+            .filter(|path| {
+                path.is_dir()
+                    && path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|s| s.starts_with("benchmark_"))
+                        .unwrap_or(false)
+            })
             .collect();
 
         folders.sort();
-        folders.last()
+        folders
+            .last()
             .cloned()
             .ok_or_else(|| "No benchmark folder found. Run generate_benchmark_data first.".into())
     }
@@ -312,7 +341,8 @@ mod tests {
     async fn kafka_service() {
         const TOPIC_OUT: &str = "pcf-results";
         const TOPIC_IN: &str = "shipments";
-        let brokers = std::env::var("KAFKA_BROKER").unwrap_or_else(|_| "localhost:9092".to_string());
+        let brokers =
+            std::env::var("KAFKA_BROKER").unwrap_or_else(|_| "localhost:9092".to_string());
         let consumer: StreamConsumer = ClientConfig::new()
             .set("bootstrap.servers", &brokers)
             .set("security.protocol", "PLAINTEXT")
@@ -335,22 +365,22 @@ mod tests {
         let json_content = fs::read_to_string("../benchmarks/documents/comp_document_21.json");
         let binding = json_content.unwrap();
         let record = FutureRecord::to(TOPIC_OUT)
-                            .payload(&binding)
-                            .key("some-key");
+            .payload(&binding)
+            .key("some-key");
         let _ = producer.send(record, Duration::from_secs(10)).await;
 
         loop {
-        match consumer.recv().await {
-            Ok(message) => match message.payload_view::<str>() {
-                Some(Ok(payload_str)) => {
-                    println!("{}", payload_str);
-                }
-                Some(Err(e)) => eprintln!("Payload UTF-8 error: {}", e),
-                None => eprintln!("No payload"),
-            },
-            Err(e) => eprintln!("Kafka error receiving message: {:?}", e),
+            match consumer.recv().await {
+                Ok(message) => match message.payload_view::<str>() {
+                    Some(Ok(payload_str)) => {
+                        println!("{}", payload_str);
+                    }
+                    Some(Err(e)) => eprintln!("Payload UTF-8 error: {}", e),
+                    None => eprintln!("No payload"),
+                },
+                Err(e) => eprintln!("Kafka error receiving message: {:?}", e),
+            }
         }
-    }
     }
 
     #[tokio::test]
@@ -389,19 +419,22 @@ mod tests {
         let mut generator = DocumentGenerator::new();
 
         // Create timestamped folder
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)?;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
         let timestamp = chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + now)
             .format("%Y%m%d_%H%M%S")
             .to_string();
 
-        let benchmark_dir = Path::new("../benchmarks/documents")
-            .join(format!("benchmark_{}", timestamp));
+        let benchmark_dir =
+            Path::new("../benchmarks/documents").join(format!("benchmark_{}", timestamp));
         let base_docs_dir = benchmark_dir.join("base_documents");
 
         fs::create_dir_all(&base_docs_dir)?;
 
-        println!("Generating {} benchmark documents in {}...", n, benchmark_dir.display());
+        println!(
+            "Generating {} benchmark documents in {}...",
+            n,
+            benchmark_dir.display()
+        );
 
         for i in 0..n {
             let proving_document = generator.generate_proving_document_random();
@@ -414,7 +447,11 @@ mod tests {
             println!("Created document {}: {}", i, path.display());
         }
 
-        println!("Successfully generated {} benchmark documents in {}", n, benchmark_dir.display());
+        println!(
+            "Successfully generated {} benchmark documents in {}",
+            n,
+            benchmark_dir.display()
+        );
         Ok(())
     }
 
@@ -427,15 +464,22 @@ mod tests {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline_precompiles =
+            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
         let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
 
         let (test_name, dir_name) = if use_baseline_precompiles {
-            ("bench_composition_baseline_precompiles", "composition_baseline_precompiles")
+            (
+                "bench_composition_baseline_precompiles",
+                "composition_baseline_precompiles",
+            )
         } else if use_baseline {
             ("bench_composition_baseline", "composition_baseline")
         } else {
-            ("bench_composition_lazy", "composition_lazy")
+            (
+                "bench_composition_lazy_precompiles",
+                "composition_lazy_precompiles",
+            )
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut response: Option<ProductProof> = None;
@@ -446,7 +490,11 @@ mod tests {
         let composition_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&composition_dir)?;
 
-        println!("Running composition benchmark with {} documents from {}...", n, benchmark_dir.display());
+        println!(
+            "Running composition benchmark with {} documents from {}...",
+            n,
+            benchmark_dir.display()
+        );
 
         for i in 0..n {
             let path = base_docs_dir.join(format!("base_document_{}.json", i));
@@ -493,15 +541,22 @@ mod tests {
             .unwrap_or(15);
 
         let mut generator = DocumentGenerator::new();
-        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline_precompiles =
+            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
         let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
 
         let (test_name, dir_name) = if use_baseline_precompiles {
-            ("bench_aggregation_baseline_precompiles", "aggregation_baseline_precompiles")
+            (
+                "bench_aggregation_baseline_precompiles",
+                "aggregation_baseline_precompiles",
+            )
         } else if use_baseline {
             ("bench_aggregation_baseline", "aggregation_baseline")
         } else {
-            ("bench_aggregation", "aggregation")
+            (
+                "bench_aggregation_lazy_precompiles",
+                "aggregation_lazy_precompiles",
+            )
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
@@ -512,7 +567,11 @@ mod tests {
         let aggregation_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&aggregation_dir)?;
 
-        println!("Running aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
+        println!(
+            "Running aggregation benchmark with {} documents from {}...",
+            n,
+            benchmark_dir.display()
+        );
 
         for i in 0..n {
             let path = base_docs_dir.join(format!("base_document_{}.json", i));
@@ -522,16 +581,26 @@ mod tests {
                 .expect("Failed to parse proving document");
 
             // Aggregate all TCE data from each document
-            blank_proving_document.tocData.append(&mut proving_document.tocData);
-            blank_proving_document.hocData.append(&mut proving_document.hocData);
-            match (&mut blank_proving_document.signedSensorData, &mut proving_document.signedSensorData) {
+            blank_proving_document
+                .tocData
+                .append(&mut proving_document.tocData);
+            blank_proving_document
+                .hocData
+                .append(&mut proving_document.hocData);
+            match (
+                &mut blank_proving_document.signedSensorData,
+                &mut proving_document.signedSensorData,
+            ) {
                 (Some(blank_vec), Some(proving_vec)) => blank_vec.append(proving_vec),
                 (None, Some(proving_vec)) if !proving_vec.is_empty() => {
                     blank_proving_document.signedSensorData = Some(std::mem::take(proving_vec));
                 }
                 _ => {}
             }
-            blank_proving_document.productFootprint.extensions[0].data.tces.append(&mut proving_document.productFootprint.extensions[0].data.tces);
+            blank_proving_document.productFootprint.extensions[0]
+                .data
+                .tces
+                .append(&mut proving_document.productFootprint.extensions[0].data.tces);
         }
 
         // Save the aggregated document
@@ -541,8 +610,8 @@ mod tests {
         file.write_all(json_string.as_bytes())?;
 
         collector.start_new_run().set_input(&blank_proving_document);
-        let response = main_proving_logic(blank_proving_document.clone(), Some(&mut collector))
-            .await;
+        let response =
+            main_proving_logic(blank_proving_document.clone(), Some(&mut collector)).await;
         collector.set_output(response.as_ref().unwrap());
         collector.print_current_run();
 
@@ -569,15 +638,25 @@ mod tests {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline_precompiles =
+            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
         let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
 
         let (test_name, dir_name) = if use_baseline_precompiles {
-            ("bench_proofaggregation_baseline_precompiles", "proof_aggregation_baseline_precompiles")
+            (
+                "bench_proofaggregation_baseline_precompiles",
+                "proof_aggregation_baseline_precompiles",
+            )
         } else if use_baseline {
-            ("bench_proofaggregation_baseline", "proof_aggregation_baseline")
+            (
+                "bench_proofaggregation_baseline",
+                "proof_aggregation_baseline",
+            )
         } else {
-            ("bench_proofaggregation_lazy", "proof_aggregation_lazy")
+            (
+                "bench_proofaggregation_lazy_precompiles",
+                "proof_aggregation_lazy_precompiles",
+            )
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut previous_proofs: Vec<ProductProof> = Vec::new();
@@ -588,7 +667,11 @@ mod tests {
         let proof_aggr_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&proof_aggr_dir)?;
 
-        println!("Running proof aggregation benchmark with {} documents from {}...", n, benchmark_dir.display());
+        println!(
+            "Running proof aggregation benchmark with {} documents from {}...",
+            n,
+            benchmark_dir.display()
+        );
 
         // Generate individual proofs for documents 0 to n-2
         for i in 0..(n - 1) {
@@ -599,8 +682,7 @@ mod tests {
                 .expect("Failed to parse proving document");
 
             collector.start_new_run().set_input(&proving_document);
-            let response = main_proving_logic(proving_document.clone(), Some(&mut collector))
-                .await;
+            let response = main_proving_logic(proving_document.clone(), Some(&mut collector)).await;
             collector.set_output(response.as_ref().unwrap());
             collector.print_current_run();
 
@@ -638,8 +720,8 @@ mod tests {
 
         // Generate the final proof that verifies all previous proofs and processes document 19
         collector.start_new_run().set_input(&final_proving_document);
-        let response = main_proving_logic(final_proving_document.clone(), Some(&mut collector))
-            .await;
+        let response =
+            main_proving_logic(final_proving_document.clone(), Some(&mut collector)).await;
         collector.set_output(response.as_ref().unwrap());
         collector.print_current_run();
 
@@ -648,7 +730,10 @@ mod tests {
             // Build the list of child document indices
             let child_indices: Vec<String> = (0..(n - 1)).map(|i| i.to_string()).collect();
             let children_list = child_indices.join("_");
-            let final_proof_path = proof_aggr_dir.join(format!("parent_proof_from_documents_{}.json", children_list));
+            let final_proof_path = proof_aggr_dir.join(format!(
+                "parent_proof_from_documents_{}.json",
+                children_list
+            ));
             let mut file = File::create(&final_proof_path)?;
             let json_string = serde_json::to_string_pretty(resp)?;
             file.write_all(json_string.as_bytes())?;
@@ -673,15 +758,25 @@ mod tests {
         // Calculate number of leaves
         let num_leaves: u32 = (total_documents + 1) / 2;
 
-        let use_baseline_precompiles = env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline_precompiles =
+            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
         let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
 
         let (test_name, dir_name) = if use_baseline_precompiles {
-            ("bench_tree_aggregation_baseline_precompiles", "tree_aggregation_baseline_precompiles")
+            (
+                "bench_tree_aggregation_baseline_precompiles",
+                "tree_aggregation_baseline_precompiles",
+            )
         } else if use_baseline {
-            ("bench_tree_aggregation_baseline", "tree_aggregation_baseline")
+            (
+                "bench_tree_aggregation_baseline",
+                "tree_aggregation_baseline",
+            )
         } else {
-            ("bench_tree_aggregation_lazy", "tree_aggregation_lazy")
+            (
+                "bench_tree_aggregation_lazy_precompiles",
+                "tree_aggregation_lazy_precompiles",
+            )
         };
         let mut collector = RunDataCollector::new(test_name);
 
@@ -692,10 +787,15 @@ mod tests {
         fs::create_dir_all(&tree_aggr_dir)?;
 
         // Map to store proofs by document index
-        let mut proofs: std::collections::HashMap<u32, ProductProof> = std::collections::HashMap::new();
+        let mut proofs: std::collections::HashMap<u32, ProductProof> =
+            std::collections::HashMap::new();
 
         // Level 0: Generate individual proofs for leaf documents
-        println!("\nLevel 0: Generating {} leaf proofs (docs 0-{})", num_leaves, num_leaves - 1);
+        println!(
+            "\nLevel 0: Generating {} leaf proofs (docs 0-{})",
+            num_leaves,
+            num_leaves - 1
+        );
         for i in 0..num_leaves {
             let path = base_docs_dir.join(format!("base_document_{}.json", i));
             let json_content = fs::read_to_string(path)?;
@@ -733,8 +833,13 @@ mod tests {
             current_level += 1;
             let next_level_count = level_count / 2;
 
-            println!("\nLevel {}: Generating {} parent proofs (docs {}-{})",
-                     current_level, next_level_count, next_doc_index, next_doc_index + next_level_count - 1);
+            println!(
+                "\nLevel {}: Generating {} parent proofs (docs {}-{})",
+                current_level,
+                next_level_count,
+                next_doc_index,
+                next_doc_index + next_level_count - 1
+            );
 
             for i in 0..next_level_count {
                 let doc_index = next_doc_index + i;
@@ -748,8 +853,12 @@ mod tests {
                     .expect("Failed to parse proving document");
 
                 // Add child proofs
-                proving_document.proof.push(proofs.get(&left_child).unwrap().clone());
-                proving_document.proof.push(proofs.get(&right_child).unwrap().clone());
+                proving_document
+                    .proof
+                    .push(proofs.get(&left_child).unwrap().clone());
+                proving_document
+                    .proof
+                    .push(proofs.get(&right_child).unwrap().clone());
 
                 collector.start_new_run().set_input(&proving_document);
                 let response = main_proving_logic(proving_document.clone(), Some(&mut collector))
@@ -779,10 +888,12 @@ mod tests {
         }
 
         println!("\nTree aggregation complete");
-        println!("Perfect binary tree: {} documents, {} levels", total_documents, current_level + 1);
+        println!(
+            "Perfect binary tree: {} documents, {} levels",
+            total_documents,
+            current_level + 1
+        );
 
         Ok(())
     }
-
-
 }
