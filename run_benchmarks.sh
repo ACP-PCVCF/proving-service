@@ -2,17 +2,20 @@
 set -e
 
 NUM_DOCS=15
-MODE="lazy"
+MODE="all"
+SKIP_GEN=false
 
-while getopts "n:m:h" opt; do
+while getopts "n:m:sh" opt; do
   case $opt in
     n) NUM_DOCS=$OPTARG ;;
     m) MODE=$OPTARG ;;
+    s) SKIP_GEN=true ;;
     h)
-      echo "Usage: $0 [-n NUM_DOCS] [-m MODE]"
+      echo "Usage: $0 [-n NUM_DOCS] [-m MODE] [-s]"
       echo "  -n  Number of documents (default: 15, must be 2^k-1 for tree)"
-      echo "  -m  Mode: all, lazy, baseline, baseline_precompiles, or combinations (default: lazy)"
-      echo "       Examples: -m lazy, -m baseline, -m baseline_precompiles, -m all"
+      echo "  -m  Mode: lazy, baseline, baseline_precompiles, or all (default: all)"
+      echo "       Examples: -m lazy, -m baseline, -m baseline_precompiles"
+      echo "  -s  Skip document generation"
       exit 0 ;;
   esac
 done
@@ -27,9 +30,14 @@ fi
 
 export BENCHMARK_NUM_DOCS=$NUM_DOCS
 
-echo ""
-echo "Generating $NUM_DOCS benchmark documents"
-cargo test generate_benchmark_data -- --ignored --nocapture
+if [ "$SKIP_GEN" = false ]; then
+    echo ""
+    echo "Generating $NUM_DOCS benchmark documents"
+    cargo test generate_benchmark_data -- --ignored --nocapture
+else
+    echo ""
+    echo "Skipping document generation"
+fi
 
 run_benchmarks() {
     echo ""
@@ -45,6 +53,12 @@ run_benchmarks() {
     cargo test bench_tree_aggregation -- --ignored --nocapture
 }
 
+if [[ "$MODE" == "baseline_precompiles" || "$MODE" == "all" ]]; then
+    export USE_BASELINE_GUEST=false
+    export USE_BASELINE_PRECOMPILES_GUEST=true
+    run_benchmarks "baseline guest (with precompiles)"
+fi
+
 if [[ "$MODE" == "lazy" || "$MODE" == "all" ]]; then
     export USE_BASELINE_GUEST=false
     export USE_BASELINE_PRECOMPILES_GUEST=false
@@ -55,12 +69,6 @@ if [[ "$MODE" == "baseline" || "$MODE" == "all" ]]; then
     export USE_BASELINE_GUEST=true
     export USE_BASELINE_PRECOMPILES_GUEST=false
     run_benchmarks "baseline guest (no precompiles)"
-fi
-
-if [[ "$MODE" == "baseline_precompiles" || "$MODE" == "all" ]]; then
-    export USE_BASELINE_GUEST=false
-    export USE_BASELINE_PRECOMPILES_GUEST=true
-    run_benchmarks "baseline guest (with precompiles)"
 fi
 
 LATEST=$(ls -1 benchmarks/documents/ | grep "^benchmark_" | sort | tail -n 1)
