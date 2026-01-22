@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, serde::Serialize)]
 struct RunMetrics {
     run_id: u64,
+    signature_count: u64,
     proof_time: u64,
     total_time: u64,
     input_size: u64,
@@ -45,6 +46,7 @@ impl RunDataCollector {
         let run_id = self.data.len() as u64 + 1;
         self.data.push(RunMetrics {
             run_id,
+            signature_count: 0,
             proof_time: 0,
             total_time: 0,
             input_size: 0,
@@ -75,9 +77,18 @@ impl RunDataCollector {
         let size: u64 = serde_json::to_string(document)
             .map(|s| s.len() as u64)
             .unwrap_or(0);
-        self.data
-            .last_mut()
-            .map(|metrics| metrics.input_size = size);
+
+        // get signature count from signedSensorData
+        let sig_count = document
+            .signedSensorData
+            .as_ref()
+            .map(|ssd| ssd.len() as u64)
+            .unwrap_or(0);
+
+        self.data.last_mut().map(|metrics| {
+            metrics.input_size = size;
+            metrics.signature_count = sig_count;
+        });
         self
     }
 
@@ -120,6 +131,7 @@ impl RunDataCollector {
 
                 wtr.write_record(&[
                     "run_id",
+                    "signature_count",
                     "proof_time",
                     "total_time",
                     "input_size",
@@ -133,6 +145,7 @@ impl RunDataCollector {
                 for metrics in &self.data {
                     wtr.serialize((
                         metrics.run_id,
+                        metrics.signature_count,
                         metrics.proof_time,
                         metrics.total_time,
                         metrics.input_size,
@@ -166,6 +179,7 @@ impl RunDataCollector {
 
             wtr.write_record(&[
                 "run_id",
+                "signature_count",
                 "proof_time",
                 "total_time",
                 "input_size",
@@ -179,6 +193,7 @@ impl RunDataCollector {
             for metrics in &self.data {
                 wtr.serialize((
                     metrics.run_id,
+                    metrics.signature_count,
                     metrics.proof_time,
                     metrics.total_time,
                     metrics.input_size,

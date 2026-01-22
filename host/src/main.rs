@@ -312,6 +312,7 @@ mod tests {
     use tokio;
 
     const DEV_MODE: &str = "false";
+    const SIGNATURE_COUNTS: [u32; 4] = [1, 4, 8, 12];
 
     /// Find the most recent benchmark folder in benchmarks/documents/
     fn get_latest_benchmark_folder() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -335,6 +336,28 @@ mod tests {
             .last()
             .cloned()
             .ok_or_else(|| "No benchmark folder found. Run generate_benchmark_data first.".into())
+    }
+
+    fn get_latest_signature_test_folder() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let base_dir = Path::new("../benchmarks/documents");
+
+        let mut folders: Vec<PathBuf> = fs::read_dir(base_dir)?
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.is_dir()
+                    && path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .map(|s| s.starts_with("signature_test_"))
+                        .unwrap_or(false)
+            })
+            .collect();
+
+        folders.sort();
+        folders.last().cloned().ok_or_else(|| {
+            "No signature_test folder found. Run generate_signature_test_documents first.".into()
+        })
     }
 
     #[tokio::test]
@@ -452,6 +475,99 @@ mod tests {
             n,
             benchmark_dir.display()
         );
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn generate_signature_test_documents() -> Result<(), Box<dyn std::error::Error>> {
+        let mut generator = DocumentGenerator::new();
+
+        let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
+        let timestamp = chrono::DateTime::<chrono::Utc>::from(UNIX_EPOCH + now)
+            .format("%Y%m%d_%H%M%S")
+            .to_string();
+
+        let sig_test_dir =
+            Path::new("../benchmarks/documents").join(format!("signature_test_{}", timestamp));
+        let base_docs_dir = sig_test_dir.join("base_documents");
+        fs::create_dir_all(&base_docs_dir)?;
+
+        for sig_count in SIGNATURE_COUNTS {
+            let hoc_count = if sig_count > 1 { sig_count - 1 } else { 0 };
+            let document = generator.generate_proving_document(sig_count, hoc_count);
+            let path = base_docs_dir.join(format!("sig_document_{}.json", sig_count));
+            let mut file = File::create(&path)?;
+            let json_string = serde_json::to_string_pretty(&document)?;
+            file.write_all(json_string.as_bytes())?;
+            println!(
+                "Created document with {} signature(s): {}",
+                sig_count,
+                path.display()
+            );
+        }
+
+        println!("Documents created in: {}", sig_test_dir.display());
+        Ok(())
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_signatures() -> Result<(), Box<dyn std::error::Error>> {
+        env::set_var("RISC0_DEV_MODE", DEV_MODE);
+
+        let use_baseline_precompiles =
+            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
+        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
+
+        let dir_name = if use_baseline_precompiles {
+            "signatures_baseline_precompiles"
+        } else if use_baseline {
+            "signatures_baseline"
+        } else {
+            "signatures_lazy_precompiles"
+        };
+
+        let mut collector = RunDataCollector::new(dir_name);
+        let sig_test_dir = get_latest_signature_test_folder()?;
+        let base_docs_dir = sig_test_dir.join("base_documents");
+        let proofs_dir = sig_test_dir.join(dir_name);
+        fs::create_dir_all(&proofs_dir)?;
+
+        println!(
+            "Running signature tests ({}) from {}...",
+            dir_name,
+            sig_test_dir.display()
+        );
+
+        for sig_count in SIGNATURE_COUNTS {
+            let path = base_docs_dir.join(format!("sig_document_{}.json", sig_count));
+            let json_content = fs::read_to_string(&path)?;
+            let proving_document = parse_proving_document(&json_content)
+                .await
+                .expect("Failed to parse proving document");
+
+            println!("Testing {} signature(s)...", sig_count);
+
+            collector.start_new_run().set_input(&proving_document);
+            let resp = main_proving_logic(proving_document.clone(), Some(&mut collector))
+                .await
+                .expect("Failed main logic");
+            collector.set_output(&resp);
+            collector.print_current_run();
+
+            // Save the proof
+            let proof_path = proofs_dir.join(format!("sig_proof_{}.json", sig_count));
+            let mut file = File::create(&proof_path)?;
+            let json_string = serde_json::to_string_pretty(&resp)?;
+            file.write_all(json_string.as_bytes())?;
+            println!("  Saved proof to: {}", proof_path.display());
+
+            collector
+                .write_to_csv_with_path(&sig_test_dir)
+                .expect("Failed to write metrics to CSV");
+        }
+
         Ok(())
     }
 
