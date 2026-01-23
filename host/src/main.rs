@@ -1,11 +1,15 @@
 use methods::{
     GUEST_BASELINE_ELF, GUEST_BASELINE_ID, GUEST_BASELINE_PRECOMPILES_ELF,
-    GUEST_BASELINE_PRECOMPILES_ID, GUEST_LAZY_PRECOMPILES_ELF, GUEST_LAZY_PRECOMPILES_ID,
+    GUEST_BASELINE_PRECOMPILES_ID, GUEST_DUMMY_ELF, GUEST_DUMMY_ID, GUEST_LAZY_PRECOMPILES_ELF,
+    GUEST_LAZY_PRECOMPILES_ID,
 };
 
 use base64::{engine::general_purpose, Engine as _};
 use chrono::Local;
-use env_helper::{is_baseline_guest, is_lazy_guest, process_and_write_proofs};
+use env_helper::{
+    get_configured_guest_mode, get_guest_type, process_and_write_proofs, ConfiguredGuestMode,
+    GuestType,
+};
 use log::info;
 use proving_service_core::product_footprint::ProductProof;
 use proving_service_core::proofing_document::*;
@@ -143,28 +147,30 @@ async fn main_proving_logic(
     let prover = default_prover();
 
     // Choose guest based on environment variable
-    let use_baseline_precompiles = std::env::var("USE_BASELINE_PRECOMPILES_GUEST")
-        .unwrap_or_else(|_| "false".to_string())
-        .to_lowercase()
-        == "true";
-
-    let use_baseline = std::env::var("USE_BASELINE_GUEST")
-        .unwrap_or_else(|_| "false".to_string())
-        .to_lowercase()
-        == "true";
-
-    let (guest_elf, guest_id) = if use_baseline_precompiles {
-        println!("Using BASELINE PRECOMPILES guest (full signature verification with precompiles)");
-        (
-            GUEST_BASELINE_PRECOMPILES_ELF,
-            GUEST_BASELINE_PRECOMPILES_ID,
-        )
-    } else if use_baseline {
-        println!("Using BASELINE guest (full signature verification without precompiles)");
-        (GUEST_BASELINE_ELF, GUEST_BASELINE_ID)
-    } else {
-        println!("Using LAZY guest (lazy signature verification)");
-        (GUEST_LAZY_PRECOMPILES_ELF, GUEST_LAZY_PRECOMPILES_ID)
+    let (guest_elf, guest_id) = match get_configured_guest_mode() {
+        ConfiguredGuestMode::Dummy => {
+            println!("Using DUMMY guest");
+            (GUEST_DUMMY_ELF, GUEST_DUMMY_ID)
+        }
+        ConfiguredGuestMode::BaselinePrecompiles => {
+            println!(
+                "Using BASELINE PRECOMPILES guest (full signature verification in guest with precompiles)"
+            );
+            (
+                GUEST_BASELINE_PRECOMPILES_ELF,
+                GUEST_BASELINE_PRECOMPILES_ID,
+            )
+        }
+        ConfiguredGuestMode::Baseline => {
+            println!(
+                "Using BASELINE guest (full signature verification in guest without precompiles)"
+            );
+            (GUEST_BASELINE_ELF, GUEST_BASELINE_ID)
+        }
+        ConfiguredGuestMode::LazyPrecompiles => {
+            println!("Using LAZY guest (lazy signature verification)");
+            (GUEST_LAZY_PRECOMPILES_ELF, GUEST_LAZY_PRECOMPILES_ID)
+        }
     };
 
     println!("ELF size: {}", guest_elf.len());
@@ -187,26 +193,39 @@ async fn main_proving_logic(
     let guest_digest = Digest::from(guest_id);
 
     // Decode journal based on guest type
-    let journal_output: f64 = if is_baseline_guest(&guest_digest) {
-        match receipt.journal.decode() {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("Failed to decode journal: {}", e);
-                return None;
-            }
+    let journal_output: f64 = match get_guest_type(&guest_digest) {
+        GuestType::Dummy => {
+            let verified_count: u64 = match receipt.journal.decode() {
+                Ok(data) => data,
+                Err(e) => {
+                    eprintln!("Failed to decode journal: {}", e);
+                    return None;
+                }
+            };
+            println!("Dummy guest verified {} proof(s)", verified_count);
+            verified_count as f64
         }
-    } else if is_lazy_guest(&guest_digest) {
-        let (pcf, _sigs): (f64, Vec<u8>) = match receipt.journal.decode() {
+        GuestType::Baseline => match receipt.journal.decode() {
             Ok(data) => data,
             Err(e) => {
                 eprintln!("Failed to decode journal: {}", e);
                 return None;
             }
-        };
-        pcf
-    } else {
-        eprintln!("Unknown guest type");
-        return None;
+        },
+        GuestType::Lazy => {
+            let (pcf, _sigs): (f64, Vec<u8>) = match receipt.journal.decode() {
+                Ok(data) => data,
+                Err(e) => {
+                    eprintln!("Failed to decode journal: {}", e);
+                    return None;
+                }
+            };
+            pcf
+        }
+        GuestType::Unknown => {
+            eprintln!("Unknown guest type");
+            return None;
+        }
     };
 
     if let Err(e) = receipt.verify(guest_id) {
@@ -312,7 +331,7 @@ mod tests {
     use tokio;
 
     const DEV_MODE: &str = "false";
-    const SIGNATURE_COUNTS: [u32; 4] = [1, 4, 8, 12];
+    const SIGNATURE_COUNTS: [u32; 5] = [1, 4, 8, 12, 16];
 
     /// Find the most recent benchmark folder in benchmarks/documents/
     fn get_latest_benchmark_folder() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -494,8 +513,7 @@ mod tests {
         fs::create_dir_all(&base_docs_dir)?;
 
         for sig_count in SIGNATURE_COUNTS {
-            let hoc_count = if sig_count > 1 { sig_count - 1 } else { 0 };
-            let document = generator.generate_proving_document(sig_count, hoc_count);
+            let document = generator.generate_proving_document(sig_count, 0);
             let path = base_docs_dir.join(format!("sig_document_{}.json", sig_count));
             let mut file = File::create(&path)?;
             let json_string = serde_json::to_string_pretty(&document)?;
@@ -516,23 +534,21 @@ mod tests {
     async fn test_signatures() -> Result<(), Box<dyn std::error::Error>> {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
 
-        let use_baseline_precompiles =
-            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
-        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
-
-        let dir_name = if use_baseline_precompiles {
-            "signatures_baseline_precompiles"
-        } else if use_baseline {
-            "signatures_baseline"
-        } else {
-            "signatures_lazy_precompiles"
+        let dir_name = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BaselinePrecompiles => "signatures_baseline_precompiles",
+            ConfiguredGuestMode::Baseline => "signatures_baseline",
+            _ => "signatures_lazy_precompiles",
         };
 
         let mut collector = RunDataCollector::new(dir_name);
+        let mut verify_collector = RunDataCollector::new(format!("{}_verify", dir_name));
         let sig_test_dir = get_latest_signature_test_folder()?;
         let base_docs_dir = sig_test_dir.join("base_documents");
         let proofs_dir = sig_test_dir.join(dir_name);
         fs::create_dir_all(&proofs_dir)?;
+
+        // Generator for empty carrier documents
+        let mut generator = DocumentGenerator::new();
 
         println!(
             "Running signature tests ({}) from {}...",
@@ -547,8 +563,10 @@ mod tests {
                 .await
                 .expect("Failed to parse proving document");
 
-            println!("Testing {} signature(s)...", sig_count);
+            println!("\nSignature count: {}", sig_count);
+            println!("Generating proof");
 
+            env::set_var("USE_DUMMY_GUEST", "false");
             collector.start_new_run().set_input(&proving_document);
             let resp = main_proving_logic(proving_document.clone(), Some(&mut collector))
                 .await
@@ -566,6 +584,34 @@ mod tests {
             collector
                 .write_to_csv_with_path(&sig_test_dir)
                 .expect("Failed to write metrics to CSV");
+
+            // Send proof to dummy guest for verification
+            println!("Verifying proof with dummy guest...");
+
+            env::set_var("USE_DUMMY_GUEST", "true");
+            let mut dummy_document = generator.generate_proving_document(0, 0);
+            dummy_document.proof.push(resp);
+
+            verify_collector
+                .start_new_run()
+                .set_input(&proving_document); // Use original doc for signature count
+            let verify_resp =
+                main_proving_logic(dummy_document.clone(), Some(&mut verify_collector))
+                    .await
+                    .expect("Verify proving failed");
+            verify_collector.set_output(&verify_resp);
+            verify_collector.print_current_run();
+
+            // Save dummy result
+            let verify_proof_path = proofs_dir.join(format!("verify_proof_{}.json", sig_count));
+            let mut file = File::create(&verify_proof_path)?;
+            let json_string = serde_json::to_string_pretty(&verify_resp)?;
+            file.write_all(json_string.as_bytes())?;
+            println!("  Saved verify proof to: {}", verify_proof_path.display());
+
+            verify_collector
+                .write_to_csv_with_path(&sig_test_dir)
+                .expect("Failed to write verify metrics to CSV");
         }
 
         Ok(())
@@ -580,22 +626,16 @@ mod tests {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let use_baseline_precompiles =
-            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
-        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
-
-        let (test_name, dir_name) = if use_baseline_precompiles {
-            (
+        let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_composition_baseline_precompiles",
                 "composition_baseline_precompiles",
-            )
-        } else if use_baseline {
-            ("bench_composition_baseline", "composition_baseline")
-        } else {
-            (
+            ),
+            ConfiguredGuestMode::Baseline => ("bench_composition_baseline", "composition_baseline"),
+            _ => (
                 "bench_composition_lazy_precompiles",
                 "composition_lazy_precompiles",
-            )
+            ),
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut response: Option<ProductProof> = None;
@@ -657,22 +697,17 @@ mod tests {
             .unwrap_or(15);
 
         let mut generator = DocumentGenerator::new();
-        let use_baseline_precompiles =
-            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
-        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
 
-        let (test_name, dir_name) = if use_baseline_precompiles {
-            (
+        let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_aggregation_baseline_precompiles",
                 "aggregation_baseline_precompiles",
-            )
-        } else if use_baseline {
-            ("bench_aggregation_baseline", "aggregation_baseline")
-        } else {
-            (
+            ),
+            ConfiguredGuestMode::Baseline => ("bench_aggregation_baseline", "aggregation_baseline"),
+            _ => (
                 "bench_aggregation_lazy_precompiles",
                 "aggregation_lazy_precompiles",
-            )
+            ),
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut blank_proving_document = generator.generate_proving_document(0, 0);
@@ -754,25 +789,19 @@ mod tests {
             .and_then(|s| s.parse().ok())
             .unwrap_or(15);
 
-        let use_baseline_precompiles =
-            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
-        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
-
-        let (test_name, dir_name) = if use_baseline_precompiles {
-            (
+        let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_proofaggregation_baseline_precompiles",
                 "proof_aggregation_baseline_precompiles",
-            )
-        } else if use_baseline {
-            (
+            ),
+            ConfiguredGuestMode::Baseline => (
                 "bench_proofaggregation_baseline",
                 "proof_aggregation_baseline",
-            )
-        } else {
-            (
+            ),
+            _ => (
                 "bench_proofaggregation_lazy_precompiles",
                 "proof_aggregation_lazy_precompiles",
-            )
+            ),
         };
         let mut collector = RunDataCollector::new(test_name);
         let mut previous_proofs: Vec<ProductProof> = Vec::new();
@@ -874,25 +903,19 @@ mod tests {
         // Calculate number of leaves
         let num_leaves: u32 = (total_documents + 1) / 2;
 
-        let use_baseline_precompiles =
-            env::var("USE_BASELINE_PRECOMPILES_GUEST").unwrap_or_default() == "true";
-        let use_baseline = env::var("USE_BASELINE_GUEST").unwrap_or_default() == "true";
-
-        let (test_name, dir_name) = if use_baseline_precompiles {
-            (
+        let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_tree_aggregation_baseline_precompiles",
                 "tree_aggregation_baseline_precompiles",
-            )
-        } else if use_baseline {
-            (
+            ),
+            ConfiguredGuestMode::Baseline => (
                 "bench_tree_aggregation_baseline",
                 "tree_aggregation_baseline",
-            )
-        } else {
-            (
+            ),
+            _ => (
                 "bench_tree_aggregation_lazy_precompiles",
                 "tree_aggregation_lazy_precompiles",
-            )
+            ),
         };
         let mut collector = RunDataCollector::new(test_name);
 

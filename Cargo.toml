@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["host", "methods", "methods/guest_lazy_precompiles", "methods/guest_baseline", "methods/guest_baseline_precompiles", "core"]
+members = ["host", "methods", "methods/guest_lazy_precompiles", "methods/guest_baseline", "methods/guest_baseline_precompiles", "methods/guest_dummy", "core"]
 
 # Always optimize; building and running the guest takes much longer without optimization.
 [profile.dev]
