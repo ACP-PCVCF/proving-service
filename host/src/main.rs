@@ -332,7 +332,7 @@ mod tests {
     use tokio;
 
     const DEV_MODE: &str = "false";
-    const SIGNATURE_COUNTS: [u32; 5] = [1, 4, 8, 12, 16];
+    const SIGNATURE_COUNTS: [u32; 6] = [1, 4, 8, 16, 32, 64];
 
     /// Find the most recent benchmark folder in benchmarks/documents/
     fn get_latest_benchmark_folder() -> Result<PathBuf, Box<dyn std::error::Error>> {
