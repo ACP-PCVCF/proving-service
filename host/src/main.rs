@@ -311,6 +311,7 @@ async fn handle_kafka_message(shipments_json: &str) -> Option<ProductProof> {
 mod tests {
     use crate::{
         benchmarking::{create_numbered_file, DocumentGenerator, RunDataCollector},
+        env_helper::{get_configured_guest_mode, ConfiguredGuestMode},
         main_proving_logic, parse_proving_document,
     };
 
