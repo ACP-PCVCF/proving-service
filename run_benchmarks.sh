@@ -13,16 +13,16 @@ while getopts "n:m:sh" opt; do
     h)
       echo "Usage: $0 [-n NUM_DOCS] [-m MODE] [-s]"
       echo "  -n  Number of documents (default: 15, must be 2^k-1 for tree)"
-      echo "  -m  Mode: lazy, baseline, baseline_precompiles, or all (default: all)"
-      echo "       Examples: -m lazy, -m baseline, -m baseline_precompiles"
+      echo "  -m  Mode: lazy, baseline, baseline_precompiles, bls, or all (default: all)"
+      echo "       Examples: -m lazy, -m baseline, -m baseline_precompiles, -m bls"
       echo "  -s  Skip document generation"
       exit 0 ;;
   esac
 done
 
 # Validate mode
-if [[ "$MODE" != "all" && "$MODE" != "lazy" && "$MODE" != "baseline" && "$MODE" != "baseline_precompiles" ]]; then
-  echo "Error: Mode must be 'all', 'lazy', 'baseline', or 'baseline_precompiles'"
+if [[ "$MODE" != "all" && "$MODE" != "lazy" && "$MODE" != "baseline" && "$MODE" != "baseline_precompiles" && "$MODE" != "bls" ]]; then
+  echo "Error: Mode must be 'all', 'lazy', 'baseline', 'baseline_precompiles', or 'bls'"
   exit 1
 fi
 
@@ -53,22 +53,36 @@ run_benchmarks() {
     cargo test bench_tree_aggregation -- --ignored --nocapture
 }
 
+if [[ "$MODE" == "bls" || "$MODE" == "all" ]]; then
+    export USE_DUMMY_GUEST=false
+    export USE_BLS_PRECOMPILES_GUEST=true
+    export USE_BASELINE_GUEST=false
+    export USE_BASELINE_PRECOMPILES_GUEST=false
+    run_benchmarks "BLS guest (aggregate signatures with precompiles)"
+fi
+
 if [[ "$MODE" == "baseline_precompiles" || "$MODE" == "all" ]]; then
+    export USE_DUMMY_GUEST=false
+    export USE_BLS_PRECOMPILES_GUEST=false
     export USE_BASELINE_GUEST=false
     export USE_BASELINE_PRECOMPILES_GUEST=true
-    run_benchmarks "baseline guest (with precompiles)"
+    run_benchmarks "baseline guest (RSA with precompiles)"
 fi
 
 if [[ "$MODE" == "lazy" || "$MODE" == "all" ]]; then
+    export USE_DUMMY_GUEST=false
+    export USE_BLS_PRECOMPILES_GUEST=false
     export USE_BASELINE_GUEST=false
     export USE_BASELINE_PRECOMPILES_GUEST=false
-    run_benchmarks "lazy guest (no precompiles)"
+    run_benchmarks "lazy guest (deferred RSA verification)"
 fi
 
 if [[ "$MODE" == "baseline" || "$MODE" == "all" ]]; then
+    export USE_DUMMY_GUEST=false
+    export USE_BLS_PRECOMPILES_GUEST=false
     export USE_BASELINE_GUEST=true
     export USE_BASELINE_PRECOMPILES_GUEST=false
-    run_benchmarks "baseline guest (no precompiles)"
+    run_benchmarks "baseline guest (RSA without precompiles)"
 fi
 
 LATEST=$(ls -1 benchmarks/documents/ | grep "^benchmark_" | sort | tail -n 1)

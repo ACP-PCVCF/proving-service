@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::bls_helper::{bls_sign, generate_bls_keypair};
 use crate::sig_verifier::{generate_key_pair, hash, sign_data};
 use base64::engine::general_purpose;
 use base64::Engine as _;
@@ -225,6 +226,10 @@ impl DocumentGenerator {
         }
     }
 
+    pub fn gen_range(&mut self, range: std::ops::Range<u32>) -> u32 {
+        self.rng.gen_range(range)
+    }
+
     fn generate_random_toc(&mut self) -> TocData {
         TocData {
             tocId: self.rng.gen_range(0..10000).to_string(),
@@ -255,14 +260,9 @@ impl DocumentGenerator {
         }
     }
 
-    pub fn generate_proving_document_random(&mut self) -> ProofingDocument {
-        let n: u32 = self.rng.gen_range(5..9);
-        let m: u32 = n.saturating_sub(self.rng.gen_range(0..3));
-        println!("Generating document with n: {}, m: {}", n, m);
-        self.generate_proving_document(n, m)
-    }
-
-    pub fn generate_proving_document(&mut self, n: u32, m: u32) -> ProofingDocument {
+    /// Generates a base document with sensor data but without signatures.
+    /// Call sign_document_rsa or sign_document_bls to add signatures.
+    pub fn generate_base_document(&mut self, n: u32, m: u32) -> ProofingDocument {
         let mut rng = OsRng;
 
         let shipment_id = self.rng.gen_range(0..10000).to_string();
@@ -309,27 +309,17 @@ impl DocumentGenerator {
             let commitment = hash(&data);
             let commitment_b64 = general_purpose::STANDARD.encode(&commitment);
 
-            match generate_key_pair() {
-                Ok((private_key_pem, public_key_pem)) => {
-                    match sign_data(&commitment_b64, &private_key_pem) {
-                        Ok(signature_b64) => {
-                            let signed_sensor_data = TceSensorData {
-                                tceId: tce.tceId.clone(),
-                                sensorkey: public_key_pem,
-                                signedSensorData: signature_b64,
-                                sensorData: sensor_data,
-                                commitment: general_purpose::STANDARD.encode(commitment),
-                                salt: salt_base64,
-                            };
+            // Create sensor data with commitment but no signatures yet
+            let unsigned_sensor_data = TceSensorData {
+                tceId: tce.tceId.clone(),
+                sensorkey: String::new(),
+                signedSensorData: String::new(),
+                sensorData: sensor_data,
+                commitment: commitment_b64,
+                salt: salt_base64,
+            };
 
-                            ssd.push(signed_sensor_data);
-                        }
-                        Err(_e) => {}
-                    }
-                }
-                Err(_e) => {}
-            }
-
+            ssd.push(unsigned_sensor_data);
             tces.push(tce);
             tocs.push(toc);
         }
@@ -379,16 +369,49 @@ impl DocumentGenerator {
             }],
         };
 
-        let document = ProofingDocument {
+        ProofingDocument {
             productFootprint: footprint,
             hocData: hocs,
             tocData: tocs,
             signedSensorData: Some(ssd),
             proof: Vec::new(),
-        };
-
-        document
+        }
     }
+}
+
+/// Signs all sensor data in the document with RSA.
+/// Returns a new document with RSA signatures filled in.
+pub fn sign_document_rsa(mut document: ProofingDocument) -> ProofingDocument {
+    if let Some(sensor_data_list) = &mut document.signedSensorData {
+        for sensor_data in sensor_data_list.iter_mut() {
+            match generate_key_pair() {
+                Ok((private_key_pem, public_key_pem)) => {
+                    match sign_data(&sensor_data.commitment, &private_key_pem) {
+                        Ok(signature_b64) => {
+                            sensor_data.sensorkey = public_key_pem;
+                            sensor_data.signedSensorData = signature_b64;
+                        }
+                        Err(_e) => {}
+                    }
+                }
+                Err(_e) => {}
+            }
+        }
+    }
+    document
+}
+
+/// Signs all sensor data in the document with BLS.
+pub fn sign_document_bls(mut document: ProofingDocument) -> ProofingDocument {
+    if let Some(sensor_data_list) = &mut document.signedSensorData {
+        for sensor_data in sensor_data_list.iter_mut() {
+            let (bls_sk, bls_pk) = generate_bls_keypair();
+            let bls_sig = bls_sign(sensor_data.commitment.as_bytes(), &bls_sk);
+            sensor_data.sensorkey = general_purpose::STANDARD.encode(&bls_pk);
+            sensor_data.signedSensorData = general_purpose::STANDARD.encode(&bls_sig);
+        }
+    }
+    document
 }
 
 pub fn create_numbered_file(base_path: &Path, extension: &str) -> io::Result<PathBuf> {
