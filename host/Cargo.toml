@@ -3,6 +3,9 @@ name = "host"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+cuda = ["risc0-zkvm/cuda"]
+
 [dependencies]
 methods = { path = "../methods" }
 proving_service_core = { path = "../core" }
