@@ -11,7 +11,9 @@ apt-get update && apt-get install -y \
     libclang-dev \
     clang \
     openssh-server \
-    openssh-client 
+    openssh-client \
+    libcurl4-openssl-dev \
+    cuda
 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 
@@ -24,4 +26,9 @@ curl -L https://risczero.com/install | bash && \
 PATH="/root/.risc0/bin:${PATH}"
 
 PATH="/root/.cargo/bin:/usr/local/cuda/bin:${PATH}"
-LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+#LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+
+mv /usr/local/cuda/bin/nvcc /usr/local/cuda/bin/nvcc.real && \
+    printf '#!/bin/bash\nargs=()\nfor arg in "$@"; do\n  if [ "$arg" = "-arch=native" ]; then\n    args+=("-arch=sm_89")\n  else\n    args+=("$arg")\n  fi\ndone\nexec /usr/local/cuda/bin/nvcc.real "${args[@]}"\n' > /usr/local/cuda/bin/nvcc && \
+    chmod +x /usr/local/cuda/bin/nvcc

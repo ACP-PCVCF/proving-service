@@ -1,9 +1,12 @@
 #!/bin/bash
 set -e
 
+LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+
 NUM_DOCS=15
 MODE="all"
 SKIP_GEN=false
+USE_GPU=true
 
 while getopts "n:m:sh" opt; do
   case $opt in
@@ -30,10 +33,15 @@ fi
 
 export BENCHMARK_NUM_DOCS=$NUM_DOCS
 
+FEATURES=""
+if [[ "${USE_GPU:-false}" == "true" ]]; then
+    FEATURES="--features cuda"
+fi
+
 if [ "$SKIP_GEN" = false ]; then
     echo ""
     echo "Generating $NUM_DOCS benchmark documents"
-    cargo test generate_benchmark_data -- --ignored --nocapture
+    cargo test generate_benchmark_data $FEATURES -- --ignored --nocapture
 else
     echo ""
     echo "Skipping document generation"
@@ -44,13 +52,13 @@ run_benchmarks() {
     echo "Running benchmarks with $1"
 
     echo "[1/3] Composition"
-    cargo test bench_composition -- --ignored --nocapture
+    cargo test  bench_composition $FEATURES -- --ignored --nocapture
 
     echo "[2/3] Proof aggregation"
-    cargo test bench_proofaggregation -- --ignored --nocapture
+    cargo test  bench_proofaggregation $FEATURES -- --ignored --nocapture
 
     echo "[3/3] Tree aggregation"
-    cargo test bench_tree_aggregation -- --ignored --nocapture
+    cargo test  bench_tree_aggregation $FEATURES -- --ignored --nocapture
 }
 
 if [[ "$MODE" == "baseline_precompiles" || "$MODE" == "all" ]]; then
