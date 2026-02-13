@@ -4,3 +4,4 @@ methods/guest/Cargo.lock
 target/
 env/
 benchmarks/documents/*
+!benchmarks/documents/README.md
