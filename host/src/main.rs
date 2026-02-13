@@ -1,7 +1,7 @@
 use methods::{
     GUEST_BASELINE_ELF, GUEST_BASELINE_ID, GUEST_BASELINE_PRECOMPILES_ELF,
-    GUEST_BASELINE_PRECOMPILES_ID, GUEST_DUMMY_ELF, GUEST_DUMMY_ID, GUEST_LAZY_PRECOMPILES_ELF,
-    GUEST_LAZY_PRECOMPILES_ID,
+    GUEST_BASELINE_PRECOMPILES_ID, GUEST_BLS_PRECOMPILES_ELF, GUEST_BLS_PRECOMPILES_ID,
+    GUEST_DUMMY_ELF, GUEST_DUMMY_ID, GUEST_LAZY_PRECOMPILES_ELF, GUEST_LAZY_PRECOMPILES_ID,
 };
 
 use base64::{engine::general_purpose, Engine as _};
@@ -27,10 +27,34 @@ use tokio::time::Duration;
 use tokio::time::Instant;
 
 use crate::benchmarking::RunDataCollector;
+use crate::bls_helper::aggregate_signatures;
 
 mod benchmarking;
+mod bls_helper;
 mod env_helper;
 mod sig_verifier;
+
+/// Aggregates BLS signatures from all sensor data in the document.
+fn aggregate_bls_signatures_from_document(document: &ProofingDocument) -> Vec<u8> {
+    let signatures: Vec<Vec<u8>> = document
+        .signedSensorData
+        .as_ref()
+        .map(|sensor_data_list| {
+            sensor_data_list
+                .iter()
+                .filter(|sd| !sd.signedSensorData.is_empty())
+                .filter_map(|sd| general_purpose::STANDARD.decode(&sd.signedSensorData).ok())
+                .filter(|sig| sig.len() == 96) // BLS signature is 96 bytes
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if signatures.is_empty() {
+        return Vec::new();
+    }
+
+    aggregate_signatures(&signatures)
+}
 
 const TOPIC_IN: &str = "shipments";
 const TOPIC_OUT: &str = "pcf-results";
@@ -137,6 +161,14 @@ async fn main_proving_logic(
         .write(&proving_document)
         .expect("Failed to write proving_document to ExecutorEnv builder");
 
+    // For BLS guest, aggregate signatures and write to env
+    if get_configured_guest_mode() == ConfiguredGuestMode::BlsPrecompiles {
+        let agg_sig = aggregate_bls_signatures_from_document(&proving_document);
+        executor_env_builder
+            .write(&agg_sig)
+            .expect("Failed to write aggregated BLS signature");
+    }
+
     process_and_write_proofs(&proof_vec, executor_env_builder);
 
     let env = executor_env_builder
@@ -151,6 +183,10 @@ async fn main_proving_logic(
         ConfiguredGuestMode::Dummy => {
             println!("Using DUMMY guest");
             (GUEST_DUMMY_ELF, GUEST_DUMMY_ID)
+        }
+        ConfiguredGuestMode::BlsPrecompiles => {
+            println!("Using BLS PRECOMPILES guest (aggregate signature verification)");
+            (GUEST_BLS_PRECOMPILES_ELF, GUEST_BLS_PRECOMPILES_ID)
         }
         ConfiguredGuestMode::BaselinePrecompiles => {
             println!(
@@ -205,7 +241,7 @@ async fn main_proving_logic(
             println!("Dummy guest verified {} proof(s)", verified_count);
             verified_count as f64
         }
-        GuestType::Baseline => match receipt.journal.decode() {
+        GuestType::Baseline | GuestType::Bls => match receipt.journal.decode() {
             Ok(data) => data,
             Err(e) => {
                 eprintln!("Failed to decode journal: {}", e);
@@ -332,7 +368,7 @@ mod tests {
     use tokio;
 
     const DEV_MODE: &str = "false";
-    const SIGNATURE_COUNTS: [u32; 6] = [1, 4, 8, 16, 32, 64];
+    const SIGNATURE_COUNTS: [u32; 3] = [1, 4, 8];
 
     /// Find the most recent benchmark folder in benchmarks/documents/
     fn get_latest_benchmark_folder() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -455,6 +491,8 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn generate_benchmark_data() -> Result<(), Box<dyn std::error::Error>> {
+        use crate::benchmarking::{sign_document_bls, sign_document_rsa};
+
         let n: u32 = env::var("BENCHMARK_NUM_DOCS")
             .ok()
             .and_then(|s| s.parse().ok())
@@ -469,9 +507,11 @@ mod tests {
 
         let benchmark_dir =
             Path::new("../benchmarks/documents").join(format!("benchmark_{}", timestamp));
-        let base_docs_dir = benchmark_dir.join("base_documents");
+        let base_docs_rsa_dir = benchmark_dir.join("base_documents_rsa");
+        let base_docs_bls_dir = benchmark_dir.join("base_documents_bls");
 
-        fs::create_dir_all(&base_docs_dir)?;
+        fs::create_dir_all(&base_docs_rsa_dir)?;
+        fs::create_dir_all(&base_docs_bls_dir)?;
 
         println!(
             "Generating {} benchmark documents in {}...",
@@ -480,18 +520,32 @@ mod tests {
         );
 
         for i in 0..n {
-            let proving_document = generator.generate_proving_document_random();
+            // Generate base document without signatures
+            // let n_tocs = generator.gen_range(5..9);
+            // let m_hocs = generator.gen_range(2..5);
+            let n_tocs = 4;
+            let m_hocs = 2;
+            let base_document = generator.generate_base_document(n_tocs, m_hocs);
 
-            let path = base_docs_dir.join(format!("base_document_{}.json", i));
-            let mut file = File::create(&path)?;
-            let json_string = serde_json::to_string_pretty(&proving_document)?;
-            file.write_all(json_string.as_bytes())?;
+            // Sign with RSA and save
+            let rsa_document = sign_document_rsa(base_document.clone());
+            let rsa_path = base_docs_rsa_dir.join(format!("base_document_{}.json", i));
+            let mut rsa_file = File::create(&rsa_path)?;
+            let rsa_json = serde_json::to_string_pretty(&rsa_document)?;
+            rsa_file.write_all(rsa_json.as_bytes())?;
 
-            println!("Created document {}: {}", i, path.display());
+            // Sign with BLS and save
+            let bls_document = sign_document_bls(base_document);
+            let bls_path = base_docs_bls_dir.join(format!("base_document_{}.json", i));
+            let mut bls_file = File::create(&bls_path)?;
+            let bls_json = serde_json::to_string_pretty(&bls_document)?;
+            bls_file.write_all(bls_json.as_bytes())?;
+
+            println!("Created document {}: RSA and BLS", i);
         }
 
         println!(
-            "Successfully generated {} benchmark documents in {}",
+            "Successfully generated {} benchmark documents (RSA + BLS) in {}",
             n,
             benchmark_dir.display()
         );
@@ -501,6 +555,8 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn generate_signature_test_documents() -> Result<(), Box<dyn std::error::Error>> {
+        use crate::benchmarking::{sign_document_bls, sign_document_rsa};
+
         let mut generator = DocumentGenerator::new();
 
         let now = SystemTime::now().duration_since(UNIX_EPOCH)?;
@@ -510,19 +566,32 @@ mod tests {
 
         let sig_test_dir =
             Path::new("../benchmarks/documents").join(format!("signature_test_{}", timestamp));
-        let base_docs_dir = sig_test_dir.join("base_documents");
-        fs::create_dir_all(&base_docs_dir)?;
+        let base_docs_rsa_dir = sig_test_dir.join("base_documents_rsa");
+        let base_docs_bls_dir = sig_test_dir.join("base_documents_bls");
+        fs::create_dir_all(&base_docs_rsa_dir)?;
+        fs::create_dir_all(&base_docs_bls_dir)?;
 
         for sig_count in SIGNATURE_COUNTS {
-            let document = generator.generate_proving_document(sig_count, 0);
-            let path = base_docs_dir.join(format!("sig_document_{}.json", sig_count));
-            let mut file = File::create(&path)?;
-            let json_string = serde_json::to_string_pretty(&document)?;
-            file.write_all(json_string.as_bytes())?;
+            // Generate base document without signatures
+            let base_document = generator.generate_base_document(sig_count, 0);
+
+            // Sign with RSA and save
+            let rsa_document = sign_document_rsa(base_document.clone());
+            let rsa_path = base_docs_rsa_dir.join(format!("sig_document_{}.json", sig_count));
+            let mut rsa_file = File::create(&rsa_path)?;
+            let rsa_json = serde_json::to_string_pretty(&rsa_document)?;
+            rsa_file.write_all(rsa_json.as_bytes())?;
+
+            // Sign with BLS and save
+            let bls_document = sign_document_bls(base_document);
+            let bls_path = base_docs_bls_dir.join(format!("sig_document_{}.json", sig_count));
+            let mut bls_file = File::create(&bls_path)?;
+            let bls_json = serde_json::to_string_pretty(&bls_document)?;
+            bls_file.write_all(bls_json.as_bytes())?;
+
             println!(
-                "Created document with {} signature(s): {}",
-                sig_count,
-                path.display()
+                "Created document with {} signature(s): RSA and BLS",
+                sig_count
             );
         }
 
@@ -536,15 +605,23 @@ mod tests {
         env::set_var("RISC0_DEV_MODE", DEV_MODE);
 
         let dir_name = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => "signatures_bls_precompiles",
             ConfiguredGuestMode::BaselinePrecompiles => "signatures_baseline_precompiles",
             ConfiguredGuestMode::Baseline => "signatures_baseline",
-            _ => "signatures_lazy_precompiles",
+            ConfiguredGuestMode::Dummy => "signatures_dummy",
+            ConfiguredGuestMode::LazyPrecompiles => "signatures_lazy_precompiles",
         };
 
         let mut collector = RunDataCollector::new(dir_name);
         let mut verify_collector = RunDataCollector::new(format!("{}_verify", dir_name));
         let sig_test_dir = get_latest_signature_test_folder()?;
-        let base_docs_dir = sig_test_dir.join("base_documents");
+
+        // Use BLS documents for BLS guest, RSA documents for others
+        let base_docs_dir = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => sig_test_dir.join("base_documents_bls"),
+            _ => sig_test_dir.join("base_documents_rsa"),
+        };
+
         let proofs_dir = sig_test_dir.join(dir_name);
         fs::create_dir_all(&proofs_dir)?;
 
@@ -590,7 +667,7 @@ mod tests {
             println!("Verifying proof with dummy guest...");
 
             env::set_var("USE_DUMMY_GUEST", "true");
-            let mut dummy_document = generator.generate_proving_document(0, 0);
+            let mut dummy_document = generator.generate_base_document(0, 0);
             dummy_document.proof.push(resp);
 
             verify_collector
@@ -628,12 +705,17 @@ mod tests {
             .unwrap_or(15);
 
         let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => (
+                "bench_composition_bls_precompiles",
+                "composition_bls_precompiles",
+            ),
             ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_composition_baseline_precompiles",
                 "composition_baseline_precompiles",
             ),
             ConfiguredGuestMode::Baseline => ("bench_composition_baseline", "composition_baseline"),
-            _ => (
+            ConfiguredGuestMode::Dummy => ("bench_composition_dummy", "composition_dummy"),
+            ConfiguredGuestMode::LazyPrecompiles => (
                 "bench_composition_lazy_precompiles",
                 "composition_lazy_precompiles",
             ),
@@ -643,7 +725,13 @@ mod tests {
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
-        let base_docs_dir = benchmark_dir.join("base_documents");
+
+        // Use BLS documents for BLS guest, RSA documents for others
+        let base_docs_dir = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => benchmark_dir.join("base_documents_bls"),
+            _ => benchmark_dir.join("base_documents_rsa"),
+        };
+
         let composition_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&composition_dir)?;
 
@@ -700,22 +788,33 @@ mod tests {
         let mut generator = DocumentGenerator::new();
 
         let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => (
+                "bench_aggregation_bls_precompiles",
+                "aggregation_bls_precompiles",
+            ),
             ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_aggregation_baseline_precompiles",
                 "aggregation_baseline_precompiles",
             ),
             ConfiguredGuestMode::Baseline => ("bench_aggregation_baseline", "aggregation_baseline"),
-            _ => (
+            ConfiguredGuestMode::Dummy => ("bench_aggregation_dummy", "aggregation_dummy"),
+            ConfiguredGuestMode::LazyPrecompiles => (
                 "bench_aggregation_lazy_precompiles",
                 "aggregation_lazy_precompiles",
             ),
         };
         let mut collector = RunDataCollector::new(test_name);
-        let mut blank_proving_document = generator.generate_proving_document(0, 0);
+        let mut blank_proving_document = generator.generate_base_document(0, 0);
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
-        let base_docs_dir = benchmark_dir.join("base_documents");
+
+        // Use BLS documents for BLS guest, RSA documents for others
+        let base_docs_dir = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => benchmark_dir.join("base_documents_bls"),
+            _ => benchmark_dir.join("base_documents_rsa"),
+        };
+
         let aggregation_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&aggregation_dir)?;
 
@@ -791,6 +890,10 @@ mod tests {
             .unwrap_or(15);
 
         let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => (
+                "bench_proofaggregation_bls_precompiles",
+                "proof_aggregation_bls_precompiles",
+            ),
             ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_proofaggregation_baseline_precompiles",
                 "proof_aggregation_baseline_precompiles",
@@ -799,7 +902,10 @@ mod tests {
                 "bench_proofaggregation_baseline",
                 "proof_aggregation_baseline",
             ),
-            _ => (
+            ConfiguredGuestMode::Dummy => {
+                ("bench_proofaggregation_dummy", "proof_aggregation_dummy")
+            }
+            ConfiguredGuestMode::LazyPrecompiles => (
                 "bench_proofaggregation_lazy_precompiles",
                 "proof_aggregation_lazy_precompiles",
             ),
@@ -809,7 +915,13 @@ mod tests {
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
-        let base_docs_dir = benchmark_dir.join("base_documents");
+
+        // Use BLS documents for BLS guest, RSA documents for others
+        let base_docs_dir = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => benchmark_dir.join("base_documents_bls"),
+            _ => benchmark_dir.join("base_documents_rsa"),
+        };
+
         let proof_aggr_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&proof_aggr_dir)?;
 
@@ -905,6 +1017,10 @@ mod tests {
         let num_leaves: u32 = (total_documents + 1) / 2;
 
         let (test_name, dir_name) = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => (
+                "bench_tree_aggregation_bls_precompiles",
+                "tree_aggregation_bls_precompiles",
+            ),
             ConfiguredGuestMode::BaselinePrecompiles => (
                 "bench_tree_aggregation_baseline_precompiles",
                 "tree_aggregation_baseline_precompiles",
@@ -913,7 +1029,10 @@ mod tests {
                 "bench_tree_aggregation_baseline",
                 "tree_aggregation_baseline",
             ),
-            _ => (
+            ConfiguredGuestMode::Dummy => {
+                ("bench_tree_aggregation_dummy", "tree_aggregation_dummy")
+            }
+            ConfiguredGuestMode::LazyPrecompiles => (
                 "bench_tree_aggregation_lazy_precompiles",
                 "tree_aggregation_lazy_precompiles",
             ),
@@ -922,7 +1041,13 @@ mod tests {
 
         // Get the latest benchmark folder
         let benchmark_dir = get_latest_benchmark_folder()?;
-        let base_docs_dir = benchmark_dir.join("base_documents");
+
+        // Use BLS documents for BLS guest, RSA documents for others
+        let base_docs_dir = match get_configured_guest_mode() {
+            ConfiguredGuestMode::BlsPrecompiles => benchmark_dir.join("base_documents_bls"),
+            _ => benchmark_dir.join("base_documents_rsa"),
+        };
+
         let tree_aggr_dir = benchmark_dir.join(dir_name);
         fs::create_dir_all(&tree_aggr_dir)?;
 

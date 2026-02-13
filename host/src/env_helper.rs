@@ -2,7 +2,8 @@ use crate::sig_verifier::verify_signature;
 use base64::engine::general_purpose;
 use base64::Engine;
 use methods::{
-    GUEST_BASELINE_ID, GUEST_BASELINE_PRECOMPILES_ID, GUEST_DUMMY_ID, GUEST_LAZY_PRECOMPILES_ID,
+    GUEST_BASELINE_ID, GUEST_BASELINE_PRECOMPILES_ID, GUEST_BLS_PRECOMPILES_ID, GUEST_DUMMY_ID,
+    GUEST_LAZY_PRECOMPILES_ID,
 };
 use proving_service_core::product_footprint::ProductProof;
 use proving_service_core::proof_container::ProofContainer;
@@ -12,6 +13,7 @@ use risc0_zkvm::{sha::Digest, ExecutorEnvBuilder, Receipt};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuestType {
     Baseline,
+    Bls,
     Lazy,
     Dummy,
     Unknown,
@@ -24,6 +26,7 @@ pub fn get_guest_type(image_id: &Digest) -> GuestType {
         {
             GuestType::Baseline
         }
+        id if id == Digest::from(GUEST_BLS_PRECOMPILES_ID) => GuestType::Bls,
         id if id == Digest::from(GUEST_LAZY_PRECOMPILES_ID) => GuestType::Lazy,
         id if id == Digest::from(GUEST_DUMMY_ID) => GuestType::Dummy,
         _ => GuestType::Unknown,
@@ -34,15 +37,20 @@ pub fn get_guest_type(image_id: &Digest) -> GuestType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfiguredGuestMode {
     Dummy,
+    BlsPrecompiles,
     BaselinePrecompiles,
     Baseline,
     LazyPrecompiles,
 }
 
 /// Returns the guest mode based on environment variables.
-/// Priority: USE_DUMMY_GUEST > USE_BASELINE_PRECOMPILES_GUEST > USE_BASELINE_GUEST > default (LazyPrecompiles)
+/// Priority: USE_DUMMY_GUEST > USE_BLS_PRECOMPILES_GUEST > USE_BASELINE_PRECOMPILES_GUEST > USE_BASELINE_GUEST > default (LazyPrecompiles)
 pub fn get_configured_guest_mode() -> ConfiguredGuestMode {
     let use_dummy = std::env::var("USE_DUMMY_GUEST")
+        .unwrap_or_default()
+        .to_lowercase()
+        == "true";
+    let use_bls_precompiles = std::env::var("USE_BLS_PRECOMPILES_GUEST")
         .unwrap_or_default()
         .to_lowercase()
         == "true";
@@ -57,6 +65,8 @@ pub fn get_configured_guest_mode() -> ConfiguredGuestMode {
 
     if use_dummy {
         ConfiguredGuestMode::Dummy
+    } else if use_bls_precompiles {
+        ConfiguredGuestMode::BlsPrecompiles
     } else if use_baseline_precompiles {
         ConfiguredGuestMode::BaselinePrecompiles
     } else if use_baseline {
@@ -113,8 +123,8 @@ pub fn process_and_write_proofs<'a>(
 
         // Handle journal decoding and signature verification based on guest type
         match get_guest_type(&image_id) {
-            GuestType::Baseline | GuestType::Dummy => {
-                // Baseline/Dummy guest: signatures already verified inside zkVM, just decode PCF
+            GuestType::Baseline | GuestType::Bls | GuestType::Dummy => {
+                // Baseline/BLS/Dummy guest: signatures already verified inside zkVM, just decode PCF
                 let _journal_output: f64 = match receipt.journal.decode() {
                     Ok(data) => data,
                     Err(e) => {
@@ -123,7 +133,7 @@ pub fn process_and_write_proofs<'a>(
                     }
                 };
                 println!(
-                    "Baseline guest proof - skipping host signature verification for productFootprintId: {}",
+                    "Guest proof (Baseline/BLS/Dummy) - skipping host signature verification for productFootprintId: {}",
                     pcf_proof.productFootprintId
                 );
             }
