@@ -1,4 +1,0 @@
-run_id,signature_count,proof_time,total_time,input_size,output_size,paging_cycles,user_cycles,reserved_cycles,total_cycles
-1,1,14,14,2012,350780,49253,142741,70150,262144
-2,4,61,61,6779,412356,63349,531900,453327,1048576
-3,8,78,78,13237,790299,96200,1057070,157450,1310720

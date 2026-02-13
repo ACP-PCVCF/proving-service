@@ -3,4 +3,5 @@ Cargo.lock
 methods/guest/Cargo.lock
 target/
 env/
-benchmarks/documents/*
+benchmarks/documents/
+benchmarks/plots/

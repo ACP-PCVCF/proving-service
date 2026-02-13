@@ -1,0 +1,16 @@
+{
+  "name": "CUDA Development Container",
+  "image": "ghcr.io/curiousjaki/proving-service-devcontainer:latest",
+  "hostRequirements": {
+    "gpu": true
+  },
+  "customizations": {
+    "kubernetes": {
+      "resources": {
+        "limits": {
+          "nvidia.com/gpu": "1"
+        }
+      }
+    }
+  }
+}

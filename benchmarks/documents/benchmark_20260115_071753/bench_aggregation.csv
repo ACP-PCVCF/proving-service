@@ -1,2 +1,0 @@
-run_id,proof_time,total_time,input_size,output_size,paging_cycles,user_cycles,reserved_cycles,total_cycles
-1,518,518,101971,3874052,512792,8117262,282842,8912896

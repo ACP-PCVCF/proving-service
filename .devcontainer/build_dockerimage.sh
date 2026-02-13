@@ -1,0 +1,1 @@
+docker build -t ghcr.io/curiousjaki/proving-service-devcontainer:latest .
